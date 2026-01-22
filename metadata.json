@@ -1,6 +1,6 @@
 {
-  "name": "EquiTrack - Gestión de Inventario Tecnológico",
-  "description": "Un sistema integral de gestión de activos tecnológicos para múltiples empresas y sedes, que incluye control de equipos, licencias, mantenimientos y credenciales.",
+  "name": "EquiTrack Pro - Enterprise IT Management",
+  "description": "Sistema avanzado de gestión de infraestructura TI multisede con control de inventario detallado, especificaciones de hardware, licenciamiento y bóveda de credenciales integrada.",
   "requestFramePermissions": [
     "camera"
   ]
