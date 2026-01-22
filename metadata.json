@@ -1,0 +1,7 @@
+{
+  "name": "EquiTrack - Gestión de Inventario Tecnológico",
+  "description": "Un sistema integral de gestión de activos tecnológicos para múltiples empresas y sedes, que incluye control de equipos, licencias, mantenimientos y credenciales.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
