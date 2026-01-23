@@ -144,13 +144,13 @@ const EquipmentList: React.FC<EquipmentListProps> = ({ company, role }) => {
   };
 
   return (
-    <div className="animate-in slide-in-from-bottom-4 duration-500">
+    <div className="animate-in slide-in-from-bottom-4 duration-500 pb-20">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-black text-gray-900 tracking-tight">Inventario de Equipos</h1>
           <p className="text-gray-500 text-sm font-medium">Gestión de activos tecnológicos para {company.name}</p>
         </div>
-        <div className="flex gap-3 w-full md:w-auto">
+        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
           <div className="relative flex-1 md:w-64">
             <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
             <input 
@@ -171,7 +171,10 @@ const EquipmentList: React.FC<EquipmentListProps> = ({ company, role }) => {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      {/* --- VISTA DESKTOP (TABLA) --- 
+          Solo visible en md o superior.
+      */}
+      <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead className="bg-gray-50 border-b border-gray-100">
@@ -186,7 +189,10 @@ const EquipmentList: React.FC<EquipmentListProps> = ({ company, role }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredItems.map((item) => (
+              {filteredItems.map((item) => {
+                const assignee = collaborators.find(c => c.id === item.assignedTo);
+                
+                return (
                 <tr key={item.id} className="hover:bg-gray-50/50 transition-colors group text-sm">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
@@ -206,23 +212,29 @@ const EquipmentList: React.FC<EquipmentListProps> = ({ company, role }) => {
                       {item.ram && <p><span className="font-bold text-gray-400">RAM:</span> {item.ram} | <span className="font-bold text-gray-400">SSD:</span> {item.storage}</p>}
                     </div>
                   </td>
-                  <td className="px-6 py-4">
-                    <span className="font-mono text-[11px] font-black text-brand-blue-dark bg-brand-blue-cyan/10 px-2 py-1 rounded-lg">{item.serialNumber}</span>
+                  <td className="px-6 py-4 max-w-[120px] lg:max-w-none">
+                    <span 
+                      title={item.serialNumber}
+                      className="font-mono text-[11px] font-black text-brand-blue-dark bg-brand-blue-cyan/10 px-2 py-1 rounded-lg inline-block max-w-full truncate align-middle"
+                    >
+                      {item.serialNumber}
+                    </span>
                   </td>
                   <td className="px-6 py-4">
                     <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-tight ${getStatusStyle(item.status)}`}>
                       {item.status}
                     </span>
                   </td>
-                  <td className="px-6 py-4">
-                    {item.assignedTo ? (
+                  <td className="px-6 py-4 max-w-[140px] lg:max-w-none">
+                    {assignee ? (
                       <div className="flex items-center gap-2">
                          <div className="w-7 h-7 rounded-full bg-brand-blue-dark flex items-center justify-center text-[10px] font-black text-white shadow-sm shrink-0">
-                           {collaborators.find(c => c.id === item.assignedTo)?.firstName.charAt(0) || '?'}
+                           {assignee.firstName.charAt(0)}
                          </div>
-                         <div className="min-w-0">
-                           <p className="text-xs font-bold text-gray-700 truncate">
-                             {collaborators.find(c => c.id === item.assignedTo)?.firstName} {collaborators.find(c => c.id === item.assignedTo)?.lastName}
+                         <div className="min-w-0 flex-1">
+                           <p className="text-xs font-bold text-gray-700 truncate" title={`${assignee.firstName} ${assignee.lastName}`}>
+                             {/* Formateo: Primer Nombre + Primer Apellido */}
+                             {assignee.firstName.split(' ')[0]} {assignee.lastName.split(' ')[0]}
                            </p>
                          </div>
                       </div>
@@ -231,7 +243,7 @@ const EquipmentList: React.FC<EquipmentListProps> = ({ company, role }) => {
                     )}
                   </td>
                   <td className="px-6 py-4">
-                    <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                       <button 
                         onClick={() => handleOpenModal(item)}
                         className="p-2 hover:bg-brand-blue-cyan/10 text-brand-blue-cyan rounded-xl transition-all" 
@@ -249,19 +261,101 @@ const EquipmentList: React.FC<EquipmentListProps> = ({ company, role }) => {
                     </div>
                   </td>
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
         </div>
-        {filteredItems.length === 0 && (
+      </div>
+
+      {/* --- VISTA MÓVIL (TARJETAS) --- 
+          Solo visible en pantallas < md. 
+          Reemplaza la tabla para evitar scroll horizontal.
+      */}
+      <div className="md:hidden space-y-4">
+        {filteredItems.map((item) => {
+            const assignee = collaborators.find(c => c.id === item.assignedTo);
+            return (
+              <div key={item.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm relative">
+                {/* Header Tarjeta */}
+                <div className="flex justify-between items-start mb-4">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center text-gray-500">
+                            <i className={`fa-solid ${item.type === 'Servidor' ? 'fa-server' : item.type === 'Laptop' ? 'fa-laptop' : 'fa-desktop'}`}></i>
+                        </div>
+                        <div>
+                            <p className="font-black text-gray-900 leading-tight">{item.type}</p>
+                            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full inline-block mt-1 ${getStatusStyle(item.status)}`}>
+                                {item.status}
+                            </span>
+                        </div>
+                    </div>
+                    {/* Acciones Móviles */}
+                    <div className="flex gap-2">
+                        <button onClick={() => handleOpenModal(item)} className="w-8 h-8 flex items-center justify-center bg-gray-50 rounded-lg text-gray-400 hover:text-brand-blue-cyan">
+                            <i className="fa-solid fa-pen text-xs"></i>
+                        </button>
+                        <button onClick={() => handleOpenMaintenance(item)} className="w-8 h-8 flex items-center justify-center bg-gray-50 rounded-lg text-gray-400 hover:text-brand-yellow">
+                            <i className="fa-solid fa-screwdriver-wrench text-xs"></i>
+                        </button>
+                    </div>
+                </div>
+
+                {/* Info Tarjeta */}
+                <div className="space-y-3 border-t border-gray-50 pt-3">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Marca / Modelo</p>
+                            <p className="font-bold text-gray-800 text-sm break-words">{item.brand} {item.model}</p>
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Serie</p>
+                            {/* break-all fuerza el salto de línea en seriales largos */}
+                            <code className="text-xs font-bold text-brand-blue-dark bg-brand-blue-cyan/5 px-1.5 py-0.5 rounded break-all">
+                                {item.serialNumber}
+                            </code>
+                        </div>
+                    </div>
+                    
+                    {(item.processor || item.ram) && (
+                        <div className="bg-gray-50 p-2.5 rounded-xl">
+                            <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Especificaciones</p>
+                            <p className="text-xs text-gray-600 font-medium leading-relaxed">
+                                {item.processor && <span>{item.processor}</span>}
+                                {item.ram && <span> • {item.ram}</span>}
+                                {item.storage && <span> • {item.storage}</span>}
+                            </p>
+                        </div>
+                    )}
+
+                    <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Asignado a</p>
+                        {assignee ? (
+                            <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded-full bg-brand-blue-dark flex items-center justify-center text-[10px] font-black text-white shrink-0">
+                                    {assignee.firstName.charAt(0)}
+                                </div>
+                                <p className="text-sm font-bold text-gray-700 truncate">
+                                    {assignee.firstName} {assignee.lastName}
+                                </p>
+                            </div>
+                        ) : (
+                            <p className="text-xs text-gray-400 italic">-- En Stock --</p>
+                        )}
+                    </div>
+                </div>
+              </div>
+            );
+        })}
+      </div>
+
+      {filteredItems.length === 0 && (
           <div className="p-20 text-center flex flex-col items-center">
             <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
               <i className="fa-solid fa-folder-open text-2xl text-gray-300"></i>
             </div>
             <p className="text-gray-400 font-bold text-sm uppercase tracking-widest">No se encontraron equipos</p>
           </div>
-        )}
-      </div>
+      )}
 
       {/* MODAL DE MANTENIMIENTO */}
       {isMaintenanceModalOpen && maintenanceItem && (

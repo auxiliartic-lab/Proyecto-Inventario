@@ -10,6 +10,24 @@ interface CollaboratorListProps {
 const AVATAR_MALE = "https://cdn-icons-png.flaticon.com/512/4042/4042356.png";
 const AVATAR_FEMALE = "https://cdn-icons-png.flaticon.com/512/4042/4042422.png";
 
+// Lista de cargos ordenada alfabéticamente por abreviatura
+const JOB_TITLES = [
+  { label: 'Analista Contable', value: 'Analista Contable' },
+  { label: 'Asist. Ejec.', value: 'Asistente Ejecutiva' },
+  { label: 'Aux. Admin.', value: 'Auxiliar Administrativo' },
+  { label: 'Coord. Comp. y Alm.', value: 'Coordinador de Compras y Almacén' },
+  { label: 'Coord. Seg. Hig. Amb.', value: 'Coordinador de Seguridad e Higiene y Ambiental' },
+  { label: 'Gte. Gral. RR.HH.', value: 'Gerente General de Recursos Humanos' },
+  { label: 'Gte. Nuevos Neg.', value: 'Gerente Desarrollo de Nuevos Negocios' },
+  { label: 'Gte. Planta', value: 'Gerente de planta' },
+  { label: 'Instrumentista', value: 'Instrumentista' },
+  { label: 'Jef. Calidad', value: 'Jefe de Calidad' },
+  { label: 'Jef. Comp. y Alm.', value: 'Jefe de Compras y Almacén' },
+  { label: 'Jef. Despachos', value: 'Jefe de Despachos' },
+  { label: 'Jef. Mant.', value: 'Jefe de Mantenimiento' },
+  { label: 'Plan. Mant.', value: 'Planeador de Mantenimiento' }
+];
+
 const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -52,15 +70,15 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
   };
 
   return (
-    <div className="animate-in fade-in duration-500">
-       <div className="flex justify-between items-center mb-8">
+    <div className="animate-in fade-in duration-500 pb-20">
+       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Gestión de Personal</h1>
           <p className="text-gray-500">Administra los colaboradores responsables de activos en {company.name}</p>
         </div>
         <button 
           onClick={() => setIsModalOpen(true)}
-          className="bg-brand-blue-cyan text-white px-5 py-2.5 rounded-xl font-bold hover:bg-brand-blue-dark transition-all shadow-lg shadow-brand-blue-cyan/10 flex items-center gap-2"
+          className="w-full md:w-auto bg-brand-blue-cyan text-white px-5 py-2.5 rounded-xl font-bold hover:bg-brand-blue-dark transition-all shadow-lg shadow-brand-blue-cyan/10 flex items-center justify-center gap-2"
         >
           <i className="fa-solid fa-user-plus"></i>
           Añadir Colaborador
@@ -69,7 +87,7 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {collaborators.map((c) => (
-          <div key={c.id} className={`bg-white p-6 rounded-2xl border ${c.isActive ? 'border-gray-100 shadow-sm' : 'border-gray-200 bg-gray-50/50 opacity-75'} flex gap-5 items-start transition-all group`}>
+          <div key={c.id} className={`bg-white p-6 rounded-2xl border ${c.isActive ? 'border-gray-100 shadow-sm' : 'border-gray-200 bg-gray-50/50 opacity-75'} flex gap-5 items-start transition-all group overflow-hidden`}>
              <div className="relative shrink-0">
                 <img 
                   src={c.sex === 'Female' ? AVATAR_FEMALE : AVATAR_MALE} 
@@ -88,7 +106,8 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
                 <div className="mt-4 flex flex-col gap-1">
                    <div className="flex items-center gap-2 text-xs text-gray-600">
                       <i className="fa-solid fa-envelope w-4"></i>
-                      <span className="truncate">{c.email}</span>
+                      {/* break-all: fuerza el salto de línea en correos largos en móvil */}
+                      <span className="break-all">{c.email}</span>
                    </div>
                 </div>
 
@@ -190,14 +209,19 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Cargo</label>
-                    <input 
+                    <select
                       required
-                      type="text" 
                       value={formData.cargo}
                       onChange={e => setFormData({...formData, cargo: e.target.value})}
-                      className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan" 
-                      placeholder="Ej: Analista Jr"
-                    />
+                      className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan appearance-none" 
+                    >
+                      <option value="">-- Seleccionar --</option>
+                      {JOB_TITLES.map((job) => (
+                        <option key={job.value} value={job.value}>
+                          {job.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Área</label>

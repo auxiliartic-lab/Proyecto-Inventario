@@ -64,9 +64,10 @@ export interface SoftwareLicense {
   companyId: number;
   name: string;
   key: string;
+  vendor: string;
+  startDate: string;
   expirationDate: string;
   type: string;
-  status: 'Active' | 'Expired' | 'Expiring Soon';
 }
 
 export interface MaintenanceRecord {
