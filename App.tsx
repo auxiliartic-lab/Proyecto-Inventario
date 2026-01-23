@@ -142,18 +142,32 @@ const App: React.FC = () => {
 
           {/* Sidebar */}
           <aside 
-            className={`bg-gray-900 text-white transition-all duration-300 z-40 flex flex-col fixed md:relative h-full
-            ${isSidebarOpen ? 'w-64 translate-x-0' : 'w-0 md:w-20 -translate-x-full md:translate-x-0'}
+            className={`bg-gray-900 text-white transition-all duration-300 z-40 flex flex-col fixed md:relative h-full shadow-2xl
+            ${isSidebarOpen ? 'w-80 translate-x-0' : 'w-0 md:w-24 -translate-x-full md:translate-x-0'}
             `}
           >
-            <div className={`p-6 flex items-center gap-3 border-b border-gray-800 ${!isSidebarOpen && 'md:justify-center px-2'}`}>
-              <div className="bg-white w-10 h-10 rounded-lg flex items-center justify-center shadow-lg shadow-white/10 shrink-0 p-1">
-                 <img src={selectedCompany.logo} alt="Logo" className="w-full h-full object-contain" />
+            {/* Header del Sidebar con Logo de Carpeta (Inventory) */}
+            <div className={`flex flex-col items-center border-b border-gray-800 transition-all duration-300 ${isSidebarOpen ? 'p-6 gap-4' : 'p-4 justify-center'}`}>
+              
+              {/* Contenedor del Logo: Carpeta estilizada - TAMAÑO REDUCIDO */}
+              <div className={`bg-gradient-to-br from-brand-blue-cyan to-brand-blue-dark rounded-full flex items-center justify-center shadow-lg shadow-brand-blue-cyan/20 transition-all duration-300 mx-auto ${
+                  isSidebarOpen 
+                    ? 'w-16 h-16' // Reducido de w-32 a w-16 (64px)
+                    : 'w-10 h-10' 
+                }`}>
+                 <i className={`fa-solid fa-folder-tree text-white ${isSidebarOpen ? 'text-2xl' : 'text-sm'}`}></i>
               </div>
-              {isSidebarOpen && <span className="font-bold text-xl tracking-tight truncate">Inventory</span>}
+
+              {/* Título de la App (Solo visible si abierto) */}
+              {isSidebarOpen && (
+                <div className="text-center animate-in fade-in slide-in-from-top-2">
+                  <span className="block font-bold text-xl tracking-tight text-white">Inventory</span>
+                  <span className="block text-[10px] text-gray-500 font-bold tracking-widest uppercase mt-0.5">Gestión Multisede v2.0</span>
+                </div>
+              )}
             </div>
 
-            <nav className="mt-8 space-y-1 px-3 flex-1 overflow-y-auto custom-scrollbar">
+            <nav className="mt-6 space-y-1.5 px-4 flex-1 overflow-y-auto custom-scrollbar">
               {NAVIGATION_ITEMS.map((item) => (
                 <button
                   key={item.id}
@@ -161,41 +175,41 @@ const App: React.FC = () => {
                     setActiveTab(item.id);
                     if (window.innerWidth < 768) setIsSidebarOpen(false);
                   }}
-                  className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all whitespace-nowrap ${
+                  className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all whitespace-nowrap group ${
                     activeTab === item.id 
                       ? 'bg-brand-blue-cyan text-white shadow-lg shadow-brand-blue-cyan/20' 
                       : 'text-gray-400 hover:bg-gray-800 hover:text-white'
                   } ${!isSidebarOpen && 'md:justify-center md:px-0'}`}
                   title={!isSidebarOpen ? item.label : ''}
                 >
-                  <i className={`fa-solid ${item.icon} w-5 text-center`}></i>
+                  <i className={`fa-solid ${item.icon} w-6 text-center text-lg ${!isSidebarOpen && activeTab !== item.id && 'group-hover:text-brand-blue-cyan'}`}></i>
                   {isSidebarOpen && <span className="font-medium text-sm">{item.label}</span>}
                 </button>
               ))}
             </nav>
 
             {isSidebarOpen ? (
-              <div className="p-6 border-t border-gray-800 bg-gray-900/50 space-y-2">
+              <div className="p-6 border-t border-gray-800 bg-gray-900/50 space-y-3">
                 <button 
                   onClick={handleLockSession}
-                  className="w-full py-2 px-4 bg-gray-800 hover:bg-brand-yellow/10 text-gray-300 hover:text-brand-yellow rounded-lg transition-colors flex items-center justify-center gap-2 text-xs font-bold"
+                  className="w-full py-3 px-4 bg-gray-800 hover:bg-brand-yellow/10 text-gray-300 hover:text-brand-yellow rounded-xl transition-colors flex items-center justify-center gap-3 text-xs font-bold uppercase tracking-wider"
                 >
-                  <i className="fa-solid fa-lock"></i>
-                  Bloquear
+                  <i className="fa-solid fa-lock text-sm"></i>
+                  Bloquear Sesión
                 </button>
                 <button 
                   onClick={handleLogout}
-                  className="w-full py-2 px-4 bg-gray-800 hover:bg-red-900/20 text-red-400 hover:text-red-300 rounded-lg transition-colors flex items-center justify-center gap-2 text-xs font-bold"
+                  className="w-full py-3 px-4 bg-gray-800 hover:bg-red-900/20 text-red-400 hover:text-red-300 rounded-xl transition-colors flex items-center justify-center gap-3 text-xs font-bold uppercase tracking-wider"
                 >
-                  <i className="fa-solid fa-right-from-bracket"></i>
-                  Salir
+                  <i className="fa-solid fa-right-from-bracket text-sm"></i>
+                  Cerrar Sistema
                 </button>
               </div>
             ) : (
                /* Iconos footer cuando sidebar colapsado */
-               <div className="py-4 flex flex-col items-center gap-4 border-t border-gray-800">
-                  <button onClick={handleLockSession} className="text-gray-500 hover:text-brand-yellow"><i className="fa-solid fa-lock"></i></button>
-                  <button onClick={handleLogout} className="text-gray-500 hover:text-red-400"><i className="fa-solid fa-right-from-bracket"></i></button>
+               <div className="py-6 flex flex-col items-center gap-6 border-t border-gray-800">
+                  <button onClick={handleLockSession} className="text-gray-500 hover:text-brand-yellow transition-colors" title="Bloquear"><i className="fa-solid fa-lock text-lg"></i></button>
+                  <button onClick={handleLogout} className="text-gray-500 hover:text-red-400 transition-colors" title="Salir"><i className="fa-solid fa-right-from-bracket text-lg"></i></button>
                </div>
             )}
           </aside>
@@ -203,10 +217,10 @@ const App: React.FC = () => {
           {/* Main Content Area */}
           <main className="flex-1 flex flex-col min-w-0 w-full h-full relative bg-gray-50">
             <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-200 px-4 md:px-8 py-4 flex items-center justify-between shadow-sm">
-              <div className="flex items-center gap-4 md:gap-6 max-w-[70%]">
+              <div className="flex items-center gap-4 md:gap-6 max-w-[60%]">
                 <button 
                   onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                  className="text-gray-500 hover:text-brand-blue-cyan transition-colors p-2 hover:bg-brand-blue-cyan/5 rounded-lg"
+                  className="text-gray-500 hover:text-brand-blue-cyan transition-colors p-2.5 hover:bg-brand-blue-cyan/5 rounded-xl"
                 >
                   <i className={`fa-solid ${isSidebarOpen ? 'fa-bars-staggered' : 'fa-bars'} text-xl`}></i>
                 </button>
@@ -218,30 +232,33 @@ const App: React.FC = () => {
                       const company = COMPANIES.find(c => c.id === Number(e.target.value));
                       if (company) setSelectedCompany(company);
                     }}
-                    className="appearance-none bg-gray-100 border-none rounded-full pl-10 pr-8 py-2 font-bold text-xs text-gray-700 focus:ring-2 focus:ring-brand-blue-cyan transition-all cursor-pointer w-full md:w-auto truncate"
+                    className="appearance-none bg-gray-100 border-none rounded-full pl-10 pr-10 py-2.5 font-bold text-sm text-gray-700 focus:ring-2 focus:ring-brand-blue-cyan transition-all cursor-pointer w-full md:w-auto truncate hover:bg-gray-200"
                   >
                     {COMPANIES.map(c => (
                       <option key={c.id} value={c.id}>{c.name.toUpperCase()}</option>
                     ))}
                   </select>
-                  <i className="fa-solid fa-chevron-down absolute right-3 md:right-4 text-gray-400 pointer-events-none text-[10px]"></i>
+                  <i className="fa-solid fa-chevron-down absolute right-4 text-gray-400 pointer-events-none text-[10px]"></i>
                 </div>
               </div>
 
-              <div className="flex items-center gap-4 md:gap-6 shrink-0">
-                 {/* Company Logo Display (Desktop) */}
+              <div className="flex items-center gap-4 md:gap-8 shrink-0">
+                 {/* Company Logo Display (Desktop) - REDUCIDO */}
                  <div className="hidden md:flex flex-col items-end">
-                    <span className="text-[9px] text-gray-400 uppercase font-black tracking-widest leading-none mb-1.5">Organización</span>
+                    <span className="text-[10px] text-gray-400 uppercase font-black tracking-widest leading-none mb-1">Organización Actual</span>
+                    {/* =============================================================================== */}
+                    {/* ✏️ REDUCIDO A h-10 (40px) */}
+                    {/* =============================================================================== */}
                     <img 
                       src={selectedCompany.logo} 
                       alt={selectedCompany.name} 
-                      className="h-8 object-contain max-w-[150px]" 
+                      className="h-10 object-contain object-right" 
                     />
                  </div>
-                 <div className="w-px h-8 bg-gray-200 hidden md:block"></div>
-                 <button className="p-2.5 text-gray-400 hover:text-brand-blue-cyan hover:bg-brand-blue-cyan/5 rounded-xl transition-all relative">
+                 <div className="w-px h-10 bg-gray-200 hidden md:block"></div>
+                 <button className="p-3 text-gray-400 hover:text-brand-blue-cyan hover:bg-brand-blue-cyan/5 rounded-xl transition-all relative">
                     <i className="fa-solid fa-bell text-xl"></i>
-                    <span className="absolute top-2 right-2 w-2 h-2 bg-brand-orange rounded-full ring-2 ring-white"></span>
+                    <span className="absolute top-2.5 right-2.5 w-2.5 h-2.5 bg-brand-orange rounded-full ring-2 ring-white"></span>
                  </button>
               </div>
             </header>

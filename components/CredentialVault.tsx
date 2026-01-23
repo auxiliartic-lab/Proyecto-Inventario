@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Company } from '../types';
+import { Company, Credential } from '../types';
 
 interface CredentialVaultProps {
   company: Company;
@@ -8,20 +8,53 @@ interface CredentialVaultProps {
 
 const CredentialVault: React.FC<CredentialVaultProps> = ({ company }) => {
   const [showPassword, setShowPassword] = useState<Record<number, boolean>>({});
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Estado local para las credenciales (Simulación de base de datos)
+  const [credentials, setCredentials] = useState<Credential[]>([
+    { id: 1, companyId: company.id, service: 'Consola AWS', username: 'admin_it', password: 'SafePassword123!', description: 'Acceso root a infraestructura' },
+    { id: 2, companyId: company.id, service: 'Panel Hosting', username: 'webmaster', password: 'HostingPass2024', description: 'Cpanel principal' },
+    { id: 3, companyId: company.id, service: 'Router Principal', username: 'root', password: 'RouterPass99', description: 'Acceso físico al rack' }
+  ]);
+
+  const [formData, setFormData] = useState<Partial<Credential>>({
+    service: '',
+    username: '',
+    password: '',
+    description: ''
+  });
 
   const toggleVisibility = (id: number) => {
     setShowPassword(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const credentials = [
-    { id: 1, service: 'Consola AWS', user: 'admin_it', pass: '*********' },
-    { id: 2, service: 'Panel Hosting', user: 'webmaster', pass: '*********' },
-    { id: 3, service: 'Router Principal', user: 'root', pass: '*********' }
-  ];
+  const handleDelete = (id: number) => {
+    if (confirm('¿Estás seguro de eliminar esta credencial?')) {
+      setCredentials(prev => prev.filter(c => c.id !== id));
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.service || !formData.username || !formData.password) return;
+
+    const newCredential: Credential = {
+      id: Date.now(), // ID temporal único
+      companyId: company.id,
+      service: formData.service,
+      username: formData.username,
+      password: formData.password,
+      description: formData.description || ''
+    };
+
+    setCredentials([...credentials, newCredential]);
+    setIsModalOpen(false);
+    setFormData({ service: '', username: '', password: '', description: '' });
+  };
 
   return (
-    <div className="animate-in zoom-in-95 duration-500">
-      <div className="mb-8 p-6 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-6">
+    <div className="animate-in zoom-in-95 duration-500 pb-20">
+      <div className="mb-8 p-6 bg-red-50 border border-red-100 rounded-2xl flex flex-col md:flex-row items-start md:items-center gap-6">
         <div className="bg-red-500 w-12 h-12 rounded-xl flex items-center justify-center text-white shrink-0 shadow-lg shadow-red-200">
           <i className="fa-solid fa-shield-halved text-2xl"></i>
         </div>
@@ -32,9 +65,15 @@ const CredentialVault: React.FC<CredentialVaultProps> = ({ company }) => {
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-           <h3 className="font-bold text-gray-900">Almacén de Credenciales</h3>
-           <button className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2">
+        <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+           <div>
+             <h3 className="font-bold text-gray-900 text-lg">Almacén de Credenciales</h3>
+             <p className="text-xs text-gray-400">Total guardado: {credentials.length}</p>
+           </div>
+           <button 
+             onClick={() => setIsModalOpen(true)}
+             className="w-full sm:w-auto bg-gray-900 hover:bg-black text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-gray-900/20"
+           >
               <i className="fa-solid fa-key"></i>
               Nueva Credencial
            </button>
@@ -42,32 +81,131 @@ const CredentialVault: React.FC<CredentialVaultProps> = ({ company }) => {
         
         <div className="divide-y divide-gray-100">
           {credentials.map(cred => (
-            <div key={cred.id} className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-gray-50 transition-colors">
-               <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center text-gray-600">
-                    <i className="fa-solid fa-vault"></i>
+            <div key={cred.id} className="p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-6 hover:bg-gray-50 transition-colors group">
+               <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center text-gray-600 shrink-0">
+                    <i className="fa-solid fa-vault text-xl"></i>
                   </div>
                   <div>
-                    <p className="font-bold text-gray-900">{cred.service}</p>
-                    <p className="text-sm text-gray-500">Usuario: <span className="font-semibold">{cred.user}</span></p>
+                    <p className="font-bold text-gray-900 text-lg">{cred.service}</p>
+                    <p className="text-sm text-gray-500 font-mono bg-gray-100 inline-block px-2 py-0.5 rounded mt-1">
+                      <i className="fa-solid fa-user text-xs mr-2 text-gray-400"></i>
+                      {cred.username}
+                    </p>
+                    {cred.description && <p className="text-xs text-gray-400 mt-1 italic">{cred.description}</p>}
                   </div>
                </div>
 
-               <div className="flex items-center gap-4 bg-gray-100 p-2 rounded-xl border border-gray-200">
-                  <span className={`font-mono text-sm px-4 ${showPassword[cred.id] ? 'text-gray-900' : 'text-gray-400 select-none'}`}>
-                    {showPassword[cred.id] ? 'SafeP@ss2026!' : '••••••••••••'}
-                  </span>
+               <div className="flex items-center gap-3">
+                  <div className="flex-1 lg:flex-none flex items-center justify-between gap-4 bg-gray-100 p-2 pl-4 rounded-xl border border-gray-200">
+                      <span className={`font-mono text-sm ${showPassword[cred.id] ? 'text-brand-blue-dark font-bold' : 'text-gray-400 select-none tracking-widest'}`}>
+                        {showPassword[cred.id] ? cred.password : '••••••••••••'}
+                      </span>
+                      <button 
+                        onClick={() => toggleVisibility(cred.id)}
+                        className="w-8 h-8 flex items-center justify-center bg-white rounded-lg shadow-sm hover:text-brand-blue-cyan transition-colors"
+                        title={showPassword[cred.id] ? "Ocultar" : "Mostrar"}
+                      >
+                        <i className={`fa-solid ${showPassword[cred.id] ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                      </button>
+                  </div>
                   <button 
-                    onClick={() => toggleVisibility(cred.id)}
-                    className="p-2 hover:bg-white rounded-lg transition-all text-emerald-600"
+                    onClick={() => handleDelete(cred.id)}
+                    className="w-10 h-10 flex items-center justify-center rounded-xl text-gray-300 hover:bg-red-50 hover:text-red-500 transition-all"
                   >
-                    <i className={`fa-solid ${showPassword[cred.id] ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                    <i className="fa-solid fa-trash-can"></i>
                   </button>
                </div>
             </div>
           ))}
+
+          {credentials.length === 0 && (
+            <div className="p-10 text-center text-gray-400">
+              <i className="fa-solid fa-folder-open text-3xl mb-3 opacity-30"></i>
+              <p>No hay credenciales guardadas</p>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* MODAL NUEVA CREDENCIAL */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="p-8">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-black text-gray-900">Guardar Credencial</h2>
+                <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                  <i className="fa-solid fa-times text-xl"></i>
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Servicio / Plataforma</label>
+                  <input 
+                    required
+                    type="text" 
+                    value={formData.service}
+                    onChange={e => setFormData({...formData, service: e.target.value})}
+                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-gray-900 transition-all" 
+                    placeholder="Ej: AWS Console, GoDaddy..."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Usuario / Email</label>
+                  <input 
+                    required
+                    type="text" 
+                    value={formData.username}
+                    onChange={e => setFormData({...formData, username: e.target.value})}
+                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-gray-900 transition-all" 
+                    placeholder="admin@empresa.com"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Contraseña</label>
+                  <div className="relative">
+                    <input 
+                      required
+                      type="text" 
+                      value={formData.password}
+                      onChange={e => setFormData({...formData, password: e.target.value})}
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-gray-900 transition-all font-mono" 
+                      placeholder="••••••••"
+                    />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
+                       <i className="fa-solid fa-lock"></i>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Descripción (Opcional)</label>
+                  <textarea 
+                    rows={2}
+                    value={formData.description}
+                    onChange={e => setFormData({...formData, description: e.target.value})}
+                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-gray-900 transition-all resize-none" 
+                    placeholder="Notas adicionales..."
+                  />
+                </div>
+
+                <div className="pt-4 flex gap-3">
+                  <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold rounded-xl transition-all">
+                    Cancelar
+                  </button>
+                  <button type="submit" className="flex-1 py-3 bg-gray-900 hover:bg-black text-white font-bold rounded-xl shadow-lg shadow-gray-900/20 transition-all">
+                    Guardar Seguro
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
