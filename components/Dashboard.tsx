@@ -12,10 +12,10 @@ const Dashboard: React.FC<DashboardProps> = ({ company }) => {
   const licenseCount = getLicensesByCompany(company.id).length;
 
   const stats = [
-    { label: 'Total Equipos', value: equipCount, icon: 'fa-laptop', color: 'bg-blue-500' },
-    { label: 'Licencias Activas', value: licenseCount, icon: 'fa-certificate', color: 'bg-emerald-500' },
-    { label: 'Mantenimientos Pendientes', value: '3', icon: 'fa-tools', color: 'bg-amber-500' },
-    { label: 'Alertas Críticas', value: '1', icon: 'fa-circle-exclamation', color: 'bg-red-500' }
+    { label: 'Total Equipos', value: equipCount, icon: 'fa-laptop', color: 'bg-brand-blue-dark' },
+    { label: 'Licencias Activas', value: licenseCount, icon: 'fa-certificate', color: 'bg-brand-green-dark' },
+    { label: 'Mantenimientos Pendientes', value: '3', icon: 'fa-tools', color: 'bg-brand-yellow' },
+    { label: 'Alertas Críticas', value: '1', icon: 'fa-circle-exclamation', color: 'bg-brand-mexico' }
   ];
 
   return (
@@ -37,7 +37,7 @@ const Dashboard: React.FC<DashboardProps> = ({ company }) => {
                 <i className={`fa-solid ${stat.icon} text-white text-xl`}></i>
               </div>
             </div>
-            <div className="mt-4 flex items-center gap-1 text-xs font-semibold text-emerald-600">
+            <div className="mt-4 flex items-center gap-1 text-xs font-semibold text-brand-green-dark">
               <i className="fa-solid fa-arrow-up"></i>
               <span>8% desde el mes pasado</span>
             </div>
@@ -49,13 +49,13 @@ const Dashboard: React.FC<DashboardProps> = ({ company }) => {
         <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-lg font-bold text-gray-900">Actividad Reciente</h3>
-            <button className="text-sm text-emerald-600 font-semibold hover:underline">Ver todo</button>
+            <button className="text-sm text-brand-blue-cyan font-semibold hover:underline">Ver todo</button>
           </div>
           <div className="space-y-6">
             {[1, 2, 3].map((_, i) => (
-              <div key={i} className="flex gap-4 p-4 rounded-xl hover:bg-gray-50 transition-colors border-l-4 border-emerald-500">
-                <div className="bg-emerald-100 w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0">
-                  <i className="fa-solid fa-plus text-emerald-600"></i>
+              <div key={i} className="flex gap-4 p-4 rounded-xl hover:bg-gray-50 transition-colors border-l-4 border-brand-blue-cyan">
+                <div className="bg-brand-blue-cyan/10 w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0">
+                  <i className="fa-solid fa-plus text-brand-blue-cyan"></i>
                 </div>
                 <div>
                   <p className="font-bold text-gray-900">Nuevo equipo registrado</p>
@@ -77,9 +77,9 @@ const Dashboard: React.FC<DashboardProps> = ({ company }) => {
                 Renovar Ahora
               </button>
             </div>
-            <div className="p-4 rounded-xl bg-amber-50 border border-amber-100">
-              <p className="font-bold text-amber-900">Garantía Server HP</p>
-              <p className="text-sm text-amber-700">Expira en 15 días</p>
+            <div className="p-4 rounded-xl bg-brand-yellow/10 border border-brand-yellow/20">
+              <p className="font-bold text-gray-900">Garantía Server HP</p>
+              <p className="text-sm text-gray-600">Expira en 15 días</p>
             </div>
           </div>
         </div>

@@ -12,10 +12,13 @@ export enum EquipmentStatus {
   LOST = 'Perdido'
 }
 
+export type MaintenanceSeverity = 'Moderate' | 'Severe' | 'TotalLoss';
+
 export interface Company {
   id: number;
   name: string;
   color: string;
+  logo: string;
 }
 
 export interface Site {
@@ -34,6 +37,8 @@ export interface Collaborator {
   email: string;
   area: string;
   cargo: string;
+  sex: 'Male' | 'Female';
+  isActive: boolean;
 }
 
 export interface Equipment {
@@ -46,7 +51,7 @@ export interface Equipment {
   serialNumber: string;
   status: EquipmentStatus;
   location: string;
-  assignedTo?: number; // Collaborator ID
+  assignedTo?: number;
   purchaseDate: string;
   processor?: string;
   ram?: string;
@@ -69,9 +74,11 @@ export interface MaintenanceRecord {
   equipmentId: number;
   companyId: number;
   date: string;
-  type: 'Preventivo' | 'Correctivo';
+  title: string;
   description: string;
-  performedBy: string;
+  severity: MaintenanceSeverity;
+  status: 'Open' | 'Closed';
+  technician?: string;
 }
 
 export interface Credential {

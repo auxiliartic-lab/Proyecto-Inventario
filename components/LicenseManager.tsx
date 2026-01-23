@@ -16,8 +16,8 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
 
   const getStatusBadge = (status: SoftwareLicense['status']) => {
     switch (status) {
-      case 'Active': return 'bg-emerald-100 text-emerald-700';
-      case 'Expiring Soon': return 'bg-amber-100 text-amber-700 animate-pulse';
+      case 'Active': return 'bg-brand-green-light/20 text-brand-green-dark';
+      case 'Expiring Soon': return 'bg-brand-yellow/20 text-brand-yellow animate-pulse';
       case 'Expired': return 'bg-red-100 text-red-700';
       default: return 'bg-gray-100 text-gray-700';
     }
@@ -40,7 +40,7 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
             </div>
             
             <div className="flex items-center gap-4 mb-6">
-               <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600">
+               <div className="w-12 h-12 bg-brand-blue-dark/5 rounded-2xl flex items-center justify-center text-brand-blue-dark">
                  <i className="fa-solid fa-certificate text-2xl"></i>
                </div>
                <div>
@@ -54,7 +54,7 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
                 <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Clave de Activación</p>
                 <div className="flex justify-between items-center">
                   <span className="font-mono text-xs font-bold blur-[2px] group-hover:blur-none transition-all">{license.key}</span>
-                  <button className="text-emerald-600 hover:text-emerald-700">
+                  <button className="text-brand-blue-cyan hover:text-brand-blue-dark">
                     <i className="fa-solid fa-copy"></i>
                   </button>
                 </div>
@@ -65,13 +65,13 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
                    <p className="text-[10px] uppercase font-bold text-gray-400">Expiración</p>
                    <p className="font-semibold text-gray-800">{new Date(license.expirationDate).toLocaleDateString()}</p>
                 </div>
-                <button className="text-sm font-bold text-emerald-600 hover:underline">Gestionar</button>
+                <button className="text-sm font-bold text-brand-blue-cyan hover:underline">Gestionar</button>
               </div>
             </div>
           </div>
         ))}
         
-        <button className="bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl p-6 flex flex-col items-center justify-center text-gray-400 hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-600 transition-all gap-3 h-full min-h-[220px]">
+        <button className="bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl p-6 flex flex-col items-center justify-center text-gray-400 hover:bg-brand-blue-cyan/5 hover:border-brand-blue-cyan/50 hover:text-brand-blue-cyan transition-all gap-3 h-full min-h-[220px]">
           <i className="fa-solid fa-plus-circle text-3xl"></i>
           <span className="font-bold">Añadir Licencia</span>
         </button>
