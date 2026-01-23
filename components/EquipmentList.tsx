@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
-import { Company, Equipment, EquipmentStatus, UserRole, Collaborator, MaintenanceSeverity } from '../types';
-import { getEquipmentByCompany, addEquipment, updateEquipment, getCollaboratorsByCompany, addMaintenanceRecord } from '../services/inventoryService';
+import React, { useState } from 'react';
+import { Company, Equipment, EquipmentStatus, UserRole, MaintenanceSeverity } from '../types';
+import { useInventory } from '../context/InventoryContext';
 
 interface EquipmentListProps {
   company: Company;
@@ -9,11 +9,16 @@ interface EquipmentListProps {
 }
 
 const EquipmentList: React.FC<EquipmentListProps> = ({ company, role }) => {
-  const [items, setItems] = useState<Equipment[]>([]);
-  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
+  // 1. Hook del Contexto (Única fuente de verdad)
+  const { 
+    data, 
+    addEquipment, 
+    updateEquipment, 
+    addMaintenanceRecord 
+  } = useInventory();
+
+  // 2. Estado local solo para UI (Modales, filtros, formularios)
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
-  
-  // Modal de Mantenimiento
   const [isMaintenanceModalOpen, setIsMaintenanceModalOpen] = useState<boolean>(false);
   const [maintenanceItem, setMaintenanceItem] = useState<Equipment | null>(null);
   const [maintenanceData, setMaintenanceData] = useState({
@@ -21,11 +26,15 @@ const EquipmentList: React.FC<EquipmentListProps> = ({ company, role }) => {
     description: '',
     severity: 'Moderate' as MaintenanceSeverity
   });
-
   const [editingId, setEditingId] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
 
-  // Estado inicial del formulario totalmente definido
+  // 3. Derivar datos directamente del contexto (Reactivo)
+  // Cuando el contexto cambie, esto se recalcula automáticamente
+  const items = data.equipment.filter(e => e.companyId === company.id);
+  const collaborators = data.collaborators.filter(c => c.companyId === company.id && c.isActive);
+
+  // Estado inicial del formulario
   const initialFormData: Partial<Equipment> = {
     type: 'Laptop',
     brand: '',
@@ -41,11 +50,6 @@ const EquipmentList: React.FC<EquipmentListProps> = ({ company, role }) => {
   };
 
   const [formData, setFormData] = useState<Partial<Equipment>>(initialFormData);
-
-  useEffect(() => {
-    setItems(getEquipmentByCompany(company.id));
-    setCollaborators(getCollaboratorsByCompany(company.id).filter(c => c.isActive));
-  }, [company]);
 
   const filteredItems = items.filter(item => 
     item.brand.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -84,6 +88,7 @@ const EquipmentList: React.FC<EquipmentListProps> = ({ company, role }) => {
     e.preventDefault();
     if (!maintenanceItem) return;
 
+    // Llama a la acción del contexto
     addMaintenanceRecord({
       companyId: company.id,
       equipmentId: maintenanceItem.id,
@@ -95,8 +100,6 @@ const EquipmentList: React.FC<EquipmentListProps> = ({ company, role }) => {
       technician: role === UserRole.TECHNICIAN ? 'Técnico Actual' : 'Por Asignar'
     });
 
-    // Refrescar lista de equipos porque el estado habrá cambiado
-    setItems(getEquipmentByCompany(company.id));
     setIsMaintenanceModalOpen(false);
   };
 
@@ -108,7 +111,7 @@ const EquipmentList: React.FC<EquipmentListProps> = ({ company, role }) => {
     }
 
     if (editingId) {
-      // Logica de Actualización
+      // Actualizar vía Contexto
       const updatedEquipment: Equipment = {
         ...(formData as Equipment),
         id: editingId,
@@ -116,7 +119,7 @@ const EquipmentList: React.FC<EquipmentListProps> = ({ company, role }) => {
       };
       updateEquipment(updatedEquipment);
     } else {
-      // Lógica de Creación
+      // Crear vía Contexto
       const equipmentToSave: Omit<Equipment, 'id'> = {
         type: formData.type || 'Laptop',
         brand: formData.brand || '',
@@ -136,8 +139,6 @@ const EquipmentList: React.FC<EquipmentListProps> = ({ company, role }) => {
       addEquipment(equipmentToSave);
     }
 
-    // Refrescar lista y cerrar modal
-    setItems(getEquipmentByCompany(company.id));
     setIsModalOpen(false);
     setFormData(initialFormData);
     setEditingId(null);
@@ -171,9 +172,7 @@ const EquipmentList: React.FC<EquipmentListProps> = ({ company, role }) => {
         </div>
       </div>
 
-      {/* --- VISTA DESKTOP (TABLA) --- 
-          Solo visible en md o superior.
-      */}
+      {/* --- VISTA DESKTOP (TABLA) --- */}
       <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
@@ -233,7 +232,6 @@ const EquipmentList: React.FC<EquipmentListProps> = ({ company, role }) => {
                          </div>
                          <div className="min-w-0 flex-1">
                            <p className="text-xs font-bold text-gray-700 truncate" title={`${assignee.firstName} ${assignee.lastName}`}>
-                             {/* Formateo: Primer Nombre + Primer Apellido */}
                              {assignee.firstName.split(' ')[0]} {assignee.lastName.split(' ')[0]}
                            </p>
                          </div>
@@ -267,10 +265,7 @@ const EquipmentList: React.FC<EquipmentListProps> = ({ company, role }) => {
         </div>
       </div>
 
-      {/* --- VISTA MÓVIL (TARJETAS) --- 
-          Solo visible en pantallas < md. 
-          Reemplaza la tabla para evitar scroll horizontal.
-      */}
+      {/* --- VISTA MÓVIL (TARJETAS) --- */}
       <div className="md:hidden space-y-4">
         {filteredItems.map((item) => {
             const assignee = collaborators.find(c => c.id === item.assignedTo);
@@ -309,7 +304,6 @@ const EquipmentList: React.FC<EquipmentListProps> = ({ company, role }) => {
                         </div>
                         <div>
                             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Serie</p>
-                            {/* break-all fuerza el salto de línea en seriales largos */}
                             <code className="text-xs font-bold text-brand-blue-dark bg-brand-blue-cyan/5 px-1.5 py-0.5 rounded break-all">
                                 {item.serialNumber}
                             </code>

@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Company, Collaborator } from '../types';
-import { getCollaboratorsByCompany, addCollaborator, deleteCollaborator, toggleCollaboratorStatus } from '../services/inventoryService';
+import { useInventory } from '../context/InventoryContext';
 
 interface CollaboratorListProps {
   company: Company;
@@ -29,8 +29,11 @@ const JOB_TITLES = [
 ];
 
 const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
-  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
+  const { data, addCollaborator, deleteCollaborator, toggleCollaboratorStatus } = useInventory();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  const collaborators = data.collaborators.filter(c => c.companyId === company.id);
+
   const [formData, setFormData] = useState<Partial<Collaborator>>({
     firstName: '',
     lastName: '',
@@ -41,19 +44,13 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
     isActive: true
   });
 
-  useEffect(() => {
-    setCollaborators(getCollaboratorsByCompany(company.id));
-  }, [company]);
-
   const handleToggleStatus = (id: number) => {
     toggleCollaboratorStatus(id);
-    setCollaborators([...getCollaboratorsByCompany(company.id)]);
   };
 
   const handleDelete = (id: number) => {
     if (window.confirm('¿Estás seguro de eliminar a este colaborador? Se perderá el historial de asignaciones.')) {
       deleteCollaborator(id);
-      setCollaborators(getCollaboratorsByCompany(company.id));
     }
   };
 
@@ -64,7 +61,6 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
       companyId: company.id,
       siteId: 1
     });
-    setCollaborators(getCollaboratorsByCompany(company.id));
     setIsModalOpen(false);
     setFormData({ firstName: '', lastName: '', email: '', cargo: '', area: '', sex: 'Male', isActive: true });
   };

@@ -246,9 +246,6 @@ const App: React.FC = () => {
                  {/* Company Logo Display (Desktop) - REDUCIDO */}
                  <div className="hidden md:flex flex-col items-end">
                     <span className="text-[10px] text-gray-400 uppercase font-black tracking-widest leading-none mb-1">Organización Actual</span>
-                    {/* =============================================================================== */}
-                    {/* ✏️ REDUCIDO A h-10 (40px) */}
-                    {/* =============================================================================== */}
                     <img 
                       src={selectedCompany.logo} 
                       alt={selectedCompany.name} 

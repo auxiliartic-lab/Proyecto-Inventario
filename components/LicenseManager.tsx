@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Company, SoftwareLicense } from '../types';
-import { getLicensesByCompany, addLicense, deleteLicense } from '../services/inventoryService';
+import { useInventory } from '../context/InventoryContext';
 
 interface LicenseManagerProps {
   company: Company;
@@ -10,10 +10,17 @@ interface LicenseManagerProps {
 type LicenseStatus = 'Active' | 'Warning' | 'Critical';
 
 const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
-  const [licenses, setLicenses] = useState<SoftwareLicense[]>([]);
+  const { data, addLicense, deleteLicense } = useInventory();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // Nuevo estado para el modal de detalles
+  const [viewModalOpen, setViewModalOpen] = useState(false);
+  const [selectedLicense, setSelectedLicense] = useState<SoftwareLicense | null>(null);
+
   const [filterMode, setFilterMode] = useState<'All' | 'Priority'>('All');
   
+  const licenses = data.licenses.filter(l => l.companyId === company.id);
+
   const [formData, setFormData] = useState<Partial<SoftwareLicense>>({
     name: '',
     vendor: '',
@@ -22,10 +29,6 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
     startDate: '',
     expirationDate: ''
   });
-
-  useEffect(() => {
-    setLicenses(getLicensesByCompany(company.id));
-  }, [company]);
 
   // Lógica del Semáforo
   const calculateStatus = (expirationDate: string): LicenseStatus => {
@@ -63,7 +66,6 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
         expirationDate: formData.expirationDate
       } as Omit<SoftwareLicense, 'id'>);
       
-      setLicenses(getLicensesByCompany(company.id));
       setIsModalOpen(false);
       setFormData({ name: '', vendor: '', key: '', type: 'Suscripción', startDate: '', expirationDate: '' });
     }
@@ -72,8 +74,12 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
   const handleDelete = (id: number) => {
     if (window.confirm('¿Eliminar esta licencia?')) {
       deleteLicense(id);
-      setLicenses(getLicensesByCompany(company.id));
     }
+  };
+
+  const handleViewDetails = (license: SoftwareLicense) => {
+    setSelectedLicense(license);
+    setViewModalOpen(true);
   };
 
   const filteredLicenses = licenses.filter(license => {
@@ -161,9 +167,22 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
                        </div>
                     </td>
                     <td className="px-6 py-4 text-right">
-                       <button onClick={() => handleDelete(license.id)} className="text-gray-400 hover:text-red-500 transition-colors">
-                          <i className="fa-solid fa-trash-can"></i>
-                       </button>
+                       <div className="flex items-center justify-end gap-2">
+                         <button 
+                            onClick={() => handleViewDetails(license)} 
+                            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue-cyan hover:bg-brand-blue-cyan/10 transition-colors" 
+                            title="Ver Detalles"
+                         >
+                            <i className="fa-solid fa-eye"></i>
+                         </button>
+                         <button 
+                            onClick={() => handleDelete(license.id)} 
+                            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors" 
+                            title="Eliminar"
+                         >
+                            <i className="fa-solid fa-trash-can"></i>
+                         </button>
+                       </div>
                     </td>
                   </tr>
                 );
@@ -186,9 +205,14 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
                       <p className="font-bold text-gray-900">{license.name}</p>
                       <p className="text-xs text-gray-500">{license.vendor}</p>
                     </div>
-                    <button onClick={() => handleDelete(license.id)} className="text-gray-300 hover:text-red-500 p-1">
-                      <i className="fa-solid fa-trash-can"></i>
-                    </button>
+                    <div className="flex gap-1">
+                      <button onClick={() => handleViewDetails(license)} className="text-gray-300 hover:text-brand-blue-cyan p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                        <i className="fa-solid fa-eye"></i>
+                      </button>
+                      <button onClick={() => handleDelete(license.id)} className="text-gray-300 hover:text-red-500 p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                        <i className="fa-solid fa-trash-can"></i>
+                      </button>
+                    </div>
                  </div>
 
                  <div className="space-y-3">
@@ -223,6 +247,94 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
               </div>
               <p className="text-gray-500 font-medium">No hay licencias que mostrar con este filtro.</p>
            </div>
+      )}
+
+      {/* MODAL DETALLES DE LICENCIA */}
+      {viewModalOpen && selectedLicense && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl animate-in zoom-in-95 duration-200">
+             <div className="p-8">
+                {/* Header */}
+                <div className="flex justify-between items-start mb-6">
+                   <div>
+                      <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                        <i className="fa-solid fa-building"></i>
+                        {selectedLicense.vendor}
+                      </p>
+                      <h2 className="text-3xl font-black text-gray-900 leading-tight">{selectedLicense.name}</h2>
+                   </div>
+                   <button onClick={() => setViewModalOpen(false)} className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all shrink-0">
+                      <i className="fa-solid fa-times text-xl"></i>
+                   </button>
+                </div>
+
+                {/* Key Section */}
+                <div className="bg-slate-50 rounded-2xl p-8 mb-8 border border-slate-100 text-center relative overflow-hidden">
+                   <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-brand-blue-cyan to-brand-blue-dark"></div>
+                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Clave de Licencia / Serial</p>
+                   <code className="text-2xl md:text-3xl font-mono font-black text-slate-800 break-all select-all">
+                      {selectedLicense.key}
+                   </code>
+                   <p className="text-[10px] text-slate-400 mt-2 italic">Haga clic para seleccionar y copiar</p>
+                </div>
+
+                {/* Details Grid */}
+                <div className="grid grid-cols-2 gap-x-8 gap-y-8 mb-8">
+                   <div>
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Tipo de Licencia</p>
+                      <p className="font-bold text-gray-800 text-lg flex items-center gap-2">
+                         <i className="fa-solid fa-tag text-gray-300 text-sm"></i>
+                         {selectedLicense.type}
+                      </p>
+                   </div>
+                   
+                   <div>
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Estado Actual</p>
+                      {(() => {
+                         const status = calculateStatus(selectedLicense.expirationDate);
+                         const config = getStatusConfig(status);
+                         return (
+                            <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border ${config.classes}`}>
+                               <i className={`fa-solid ${config.icon} text-xs`}></i>
+                               <span className="text-[10px] font-black uppercase tracking-tight">{config.label}</span>
+                            </span>
+                         );
+                      })()}
+                   </div>
+
+                   <div>
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Fecha de Inicio</p>
+                      <p className="font-semibold text-gray-600">
+                         {new Date(selectedLicense.startDate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
+                      </p>
+                   </div>
+                   
+                   <div>
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Fecha de Vencimiento</p>
+                      {(() => {
+                          const status = calculateStatus(selectedLicense.expirationDate);
+                          const isCritical = status === 'Critical';
+                          return (
+                             <p className={`font-bold text-lg ${isCritical ? 'text-red-600' : 'text-gray-800'}`}>
+                                {new Date(selectedLicense.expirationDate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
+                             </p>
+                          );
+                      })()}
+                   </div>
+                </div>
+
+                {/* Footer */}
+                <div className="flex justify-end pt-4 border-t border-gray-100">
+                   <button 
+                      onClick={() => setViewModalOpen(false)} 
+                      className="px-8 py-3 bg-gray-900 hover:bg-black text-white font-bold rounded-xl shadow-lg shadow-gray-900/20 transition-all text-sm"
+                   >
+                      Cerrar Ventana
+                   </button>
+                </div>
+             </div>
+          </div>
+        </div>
       )}
 
       {/* MODAL NUEVA LICENCIA */}

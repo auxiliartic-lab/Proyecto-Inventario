@@ -1,34 +1,30 @@
 
-import React, { useState, useEffect } from 'react';
-import { Company, MaintenanceRecord, Equipment, Collaborator, EquipmentStatus } from '../types';
-import { getMaintenanceByCompany, getEquipmentById, getCollaboratorsByCompany } from '../services/inventoryService';
+import React, { useState } from 'react';
+import { Company, MaintenanceRecord, Equipment } from '../types';
+import { useInventory } from '../context/InventoryContext';
 
 interface MaintenanceManagerProps {
   company: Company;
 }
 
 const MaintenanceManager: React.FC<MaintenanceManagerProps> = ({ company }) => {
-  const [records, setRecords] = useState<MaintenanceRecord[]>([]);
-  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
+  const { data } = useInventory();
+  const records = (data.maintenance || []).filter(m => m.companyId === company.id);
+  
   const [filterType, setFilterType] = useState<string>('Todos');
   
   // Estado para el modal de detalles
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [selectedEquipment, setSelectedEquipment] = useState<Equipment | null>(null);
 
-  useEffect(() => {
-    setRecords(getMaintenanceByCompany(company.id));
-    setCollaborators(getCollaboratorsByCompany(company.id));
-  }, [company]);
-
-  // Helper para obtener datos del equipo
+  // Helper para obtener datos del equipo usando el contexto
   const getEquipmentInfo = (equipId: number) => {
-    return getEquipmentById(equipId);
+    return data.equipment.find(e => e.id === equipId);
   };
 
   // Abrir modal de detalles
   const handleViewDetails = (equipId: number) => {
-    const equip = getEquipmentById(equipId);
+    const equip = getEquipmentInfo(equipId);
     if (equip) {
       setSelectedEquipment(equip);
       setIsModalOpen(true);
@@ -74,6 +70,14 @@ const MaintenanceManager: React.FC<MaintenanceManagerProps> = ({ company }) => {
       default:
         return { card: '', badge: '', icon: '' };
     }
+  };
+
+  // Helper seguro para renderizar nombre de colaborador
+  const renderAssignedName = (assignedTo?: number) => {
+    if (!assignedTo) return '-- Sin Asignar --';
+    const collaborator = data.collaborators.find(c => c.id === assignedTo);
+    if (!collaborator) return 'Colaborador no encontrado';
+    return `${collaborator.firstName} ${collaborator.lastName}`;
   };
 
   return (
@@ -266,16 +270,10 @@ const MaintenanceManager: React.FC<MaintenanceManagerProps> = ({ company }) => {
                   </div>
                   <div>
                     <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">Asignado a Colaborador</label>
-                    <select 
-                      disabled
-                      value={selectedEquipment.assignedTo || ''}
-                      className="w-full p-3 bg-gray-100 border border-gray-200 rounded-xl outline-none font-bold text-sm text-gray-600 appearance-none"
-                    >
-                      <option value="">-- Sin Asignar --</option>
-                      {collaborators.map(c => (
-                        <option key={c.id} value={c.id}>{c.firstName} {c.lastName} | {c.cargo}</option>
-                      ))}
-                    </select>
+                    <div className="w-full p-3 bg-gray-100 border border-gray-200 rounded-xl font-bold text-sm text-gray-600">
+                       {/* Uso del helper seguro */}
+                       {renderAssignedName(selectedEquipment.assignedTo)}
+                    </div>
                   </div>
                 </div>
               </div>

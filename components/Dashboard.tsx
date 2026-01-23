@@ -1,26 +1,29 @@
 
 import React from 'react';
 import { Company } from '../types';
-import { getEquipmentByCompany, getLicensesByCompany, resetToFactory } from '../services/inventoryService';
+import { useInventory } from '../context/InventoryContext';
 
 interface DashboardProps {
   company: Company;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ company }) => {
-  const equipCount = getEquipmentByCompany(company.id).length;
-  const licenseCount = getLicensesByCompany(company.id).length;
+  const { data, factoryReset } = useInventory();
+  
+  const equipCount = data.equipment.filter(e => e.companyId === company.id).length;
+  const licenseCount = data.licenses.filter(l => l.companyId === company.id).length;
+  const maintenanceCount = (data.maintenance || []).filter(m => m.companyId === company.id && m.status === 'Open').length;
 
   const stats = [
     { label: 'Total Equipos', value: equipCount, icon: 'fa-laptop', color: 'bg-brand-blue-dark' },
     { label: 'Licencias Activas', value: licenseCount, icon: 'fa-certificate', color: 'bg-brand-green-dark' },
-    { label: 'Mantenimientos Pendientes', value: '3', icon: 'fa-tools', color: 'bg-brand-yellow' },
+    { label: 'Mantenimientos Pendientes', value: maintenanceCount, icon: 'fa-tools', color: 'bg-brand-yellow' },
     { label: 'Alertas Críticas', value: '1', icon: 'fa-circle-exclamation', color: 'bg-brand-mexico' }
   ];
 
   const handleReset = () => {
     if (confirm('¡Atención! Esto borrará todos los datos que has ingresado (Equipos, Licencias, Colaboradores) y restaurará la base de datos al estado inicial de fábrica. ¿Estás seguro?')) {
-      resetToFactory();
+      factoryReset();
     }
   };
 
@@ -99,8 +102,7 @@ const Dashboard: React.FC<DashboardProps> = ({ company }) => {
         </h3>
         <p className="text-sm text-gray-500 mb-4">
           Esta aplicación utiliza el <strong>almacenamiento local del navegador</strong> para simular una base de datos. 
-          Los datos que ingreses se guardarán automáticamente y permanecerán incluso si recargas la página. 
-          Si deseas reiniciar las pruebas, utiliza el siguiente botón.
+          Los datos que ingreses se guardarán automáticamente. Ahora usamos <strong>React Context</strong> para asegurar que los datos estén sincronizados en toda la app.
         </p>
         <button 
           onClick={handleReset}
