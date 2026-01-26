@@ -1,8 +1,7 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Company, Equipment, MaintenanceRecord, SoftwareLicense } from '../types';
 import { useInventory } from '../context/InventoryContext';
-// Cambiamos a importación por defecto que es compatible con xlsx-js-style
 import XLSX from 'xlsx';
 
 interface ReportsModuleProps {
@@ -11,14 +10,62 @@ interface ReportsModuleProps {
 
 type ReportType = 'equipment' | 'maintenance' | 'licenses';
 
+const MONTHS = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+];
+
 const ReportsModule: React.FC<ReportsModuleProps> = ({ company }) => {
   const { data } = useInventory();
   const [activeTab, setActiveTab] = useState<ReportType>('equipment');
+  
+  // Estado para filtros de fecha
+  // CAMBIO: Por defecto en 'all' para mostrar datos históricos inmediatamente
+  const currentYear = new Date().getFullYear();
+  const [selectedYear, setSelectedYear] = useState<number | 'all'>('all');
+  const [selectedMonth, setSelectedMonth] = useState<number | 'all'>('all');
 
-  // Filtros de datos por compañía actual
-  const equipment = data.equipment.filter(e => e.companyId === company.id);
-  const maintenance = (data.maintenance || []).filter(m => m.companyId === company.id);
-  const licenses = data.licenses.filter(l => l.companyId === company.id);
+  // Generar lista de años disponibles (desde 2020 hasta actual)
+  const availableYears = Array.from({ length: currentYear - 2020 + 1 }, (_, i) => currentYear - i);
+
+  // --- LÓGICA DE FILTRADO ---
+  
+  const filterByDate = (items: any[], dateField: string) => {
+    if (selectedYear === 'all') return items;
+
+    return items.filter(item => {
+      if (!item[dateField]) return false;
+      
+      // CAMBIO: Parsing manual de string YYYY-MM-DD para evitar problemas de timezone
+      // new Date('2023-01-01') puede devolver el día anterior dependiendo de la zona horaria del navegador
+      const parts = item[dateField].toString().split('-');
+      if (parts.length < 3) return false;
+
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1; // Meses en JS son 0-11
+
+      const yearMatch = year === selectedYear;
+      const monthMatch = selectedMonth === 'all' || month === selectedMonth;
+
+      return yearMatch && monthMatch;
+    });
+  };
+
+  // Datos Base (Filtrados por Compañía)
+  const rawEquipment = data.equipment.filter(e => e.companyId === company.id);
+  const rawMaintenance = (data.maintenance || []).filter(m => m.companyId === company.id);
+  const rawLicenses = data.licenses.filter(l => l.companyId === company.id);
+
+  // Datos Filtrados por Tiempo
+  const filteredEquipment = useMemo(() => filterByDate(rawEquipment, 'purchaseDate'), [rawEquipment, selectedYear, selectedMonth]);
+  const filteredMaintenance = useMemo(() => filterByDate(rawMaintenance, 'date'), [rawMaintenance, selectedYear, selectedMonth]);
+  const filteredLicenses = useMemo(() => filterByDate(rawLicenses, 'startDate'), [rawLicenses, selectedYear, selectedMonth]);
+
+  // Texto descriptivo del periodo
+  const periodLabel = selectedYear === 'all' 
+    ? 'Histórico Completo' 
+    : `${selectedMonth !== 'all' ? MONTHS[selectedMonth as number] : 'Todo el año'} ${selectedYear}`;
+
 
   // --- LÓGICA DE EXPORTACIÓN A EXCEL CON ESTILOS ---
 
@@ -40,59 +87,49 @@ const ReportsModule: React.FC<ReportsModuleProps> = ({ company }) => {
 
   const generateExcel = (dataToExport: any[], sheetName: string, fileName: string) => {
     if (dataToExport.length === 0) {
-      alert("No hay datos para exportar en esta sección.");
+      alert("No hay datos para exportar en el periodo seleccionado.");
       return;
     }
 
-    // 1. Crear Worksheet básico
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
 
-    // 2. Definir Estilos Corporativos
-    const borderStyle = { style: "thin", color: { rgb: "BDBDBD" } }; // Borde gris suave
+    // Estilos
+    const borderStyle = { style: "thin", color: { rgb: "BDBDBD" } };
     
     const headerStyle = {
       font: { name: "Arial", sz: 11, bold: true, color: { rgb: "FFFFFF" } },
-      fill: { fgColor: { rgb: "0072BC" } }, // Azul Corporativo (brand-blue-dark)
+      fill: { fgColor: { rgb: "0072BC" } }, 
       border: { top: borderStyle, bottom: borderStyle, left: borderStyle, right: borderStyle },
       alignment: { vertical: "center", horizontal: "center", wrapText: true }
     };
 
     const rowStyleEven = {
       font: { name: "Arial", sz: 10, color: { rgb: "333333" } },
-      fill: { fgColor: { rgb: "FFFFFF" } }, // Blanco
+      fill: { fgColor: { rgb: "FFFFFF" } }, 
       border: { top: borderStyle, bottom: borderStyle, left: borderStyle, right: borderStyle },
       alignment: { vertical: "center", horizontal: "left" }
     };
 
     const rowStyleOdd = {
       font: { name: "Arial", sz: 10, color: { rgb: "333333" } },
-      fill: { fgColor: { rgb: "F3F4F6" } }, // Gris muy claro (zebra striping)
+      fill: { fgColor: { rgb: "F3F4F6" } }, 
       border: { top: borderStyle, bottom: borderStyle, left: borderStyle, right: borderStyle },
       alignment: { vertical: "center", horizontal: "left" }
     };
 
-    // 3. Aplicar estilos celda por celda
     const range = XLSX.utils.decode_range(worksheet['!ref'] || "A1:A1");
     
     for (let R = range.s.r; R <= range.e.r; ++R) {
       for (let C = range.s.c; C <= range.e.c; ++C) {
         const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
-        
-        // Asegurar que la celda existe, si no, crearla vacía para ponerle borde
-        if (!worksheet[cellAddress]) {
-            worksheet[cellAddress] = { t: 's', v: '' }; 
-        }
+        if (!worksheet[cellAddress]) worksheet[cellAddress] = { t: 's', v: '' }; 
 
         const cell = worksheet[cellAddress];
 
-        // Header (Fila 0)
         if (R === 0) {
           cell.s = headerStyle;
         } else {
-          // Datos (Filas 1+)
           cell.s = (R % 2 === 0) ? rowStyleEven : rowStyleOdd;
-          
-          // Detectar fechas para alinearlas al centro
           if (cell.v && typeof cell.v === 'string' && cell.v.includes('-') && cell.v.length === 10) {
              cell.s = { ...cell.s, alignment: { vertical: "center", horizontal: "center" } };
           }
@@ -100,19 +137,14 @@ const ReportsModule: React.FC<ReportsModuleProps> = ({ company }) => {
       }
     }
 
-    // 4. Ajustar ancho columnas
     worksheet['!cols'] = autoFitColumns(dataToExport);
-
-    // 5. Crear Workbook
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-
-    // 6. Descargar
-    XLSX.writeFile(workbook, `${fileName}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    XLSX.writeFile(workbook, `${fileName}_${selectedYear === 'all' ? 'Historico' : selectedYear}.xlsx`);
   };
 
   const exportEquipment = () => {
-    const formattedData = equipment.map(item => {
+    const formattedData = filteredEquipment.map(item => {
       const assignedUser = item.assignedTo ? data.collaborators.find(c => c.id === item.assignedTo) : null;
       const userName = assignedUser ? `${assignedUser.firstName} ${assignedUser.lastName}` : 'En Stock / Sin Asignar';
       
@@ -130,15 +162,15 @@ const ReportsModule: React.FC<ReportsModuleProps> = ({ company }) => {
         'Ubicación': item.location,
         'Asignado A': userName,
         'Cargo': assignedUser ? assignedUser.cargo : '-',
-        'Fecha Compra': item.purchaseDate || '-'
+        'Fecha Ingreso': item.purchaseDate || '-'
       };
     });
 
-    generateExcel(formattedData, "Inventario de Equipos", `Inventario_${company.name.replace(/\s+/g, '_')}`);
+    generateExcel(formattedData, "Reporte Equipos", `Equipos_${periodLabel.replace(/\s+/g, '_')}`);
   };
 
   const exportMaintenance = () => {
-    const formattedData = maintenance.map(item => {
+    const formattedData = filteredMaintenance.map(item => {
       const equip = data.equipment.find(e => e.id === item.equipmentId);
       const equipName = equip ? `${equip.type} ${equip.brand} ${equip.model}` : 'Equipo Eliminado';
       const equipSerial = equip ? equip.serialNumber : 'N/A';
@@ -157,11 +189,11 @@ const ReportsModule: React.FC<ReportsModuleProps> = ({ company }) => {
       };
     });
 
-    generateExcel(formattedData, "Registro Mantenimientos", `Mantenimiento_${company.name.replace(/\s+/g, '_')}`);
+    generateExcel(formattedData, "Reporte Mantenimientos", `Mantenimiento_${periodLabel.replace(/\s+/g, '_')}`);
   };
 
   const exportLicenses = () => {
-    const formattedData = licenses.map(item => {
+    const formattedData = filteredLicenses.map(item => {
       const today = new Date();
       const exp = new Date(item.expirationDate);
       const status = exp < today ? 'VENCIDA' : 'Activa';
@@ -172,13 +204,13 @@ const ReportsModule: React.FC<ReportsModuleProps> = ({ company }) => {
         'Proveedor': item.vendor,
         'Tipo': item.type,
         'Clave / Serial': item.key,
-        'Inicio': item.startDate,
+        'Inicio Contrato': item.startDate,
         'Vencimiento': item.expirationDate,
         'Estado': status
       };
     });
 
-    generateExcel(formattedData, "Control de Licencias", `Licencias_${company.name.replace(/\s+/g, '_')}`);
+    generateExcel(formattedData, "Reporte Licencias", `Licencias_${periodLabel.replace(/\s+/g, '_')}`);
   };
 
   const handleExport = () => {
@@ -189,7 +221,7 @@ const ReportsModule: React.FC<ReportsModuleProps> = ({ company }) => {
     }
   };
 
-  // --- COMPONENTES VISUALES UI (Sin cambios) ---
+  // --- COMPONENTES VISUALES UI ---
 
   const StatCard = ({ label, value, icon, color }: { label: string, value: string | number, icon: string, color: string }) => (
     <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
@@ -208,7 +240,7 @@ const ReportsModule: React.FC<ReportsModuleProps> = ({ company }) => {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Centro de Reportes</h1>
-          <p className="text-gray-500">Genera y exporta información detallada de la organización.</p>
+          <p className="text-gray-500">Genera reportes históricos y de control para {company.name}.</p>
         </div>
         
         <button 
@@ -216,89 +248,167 @@ const ReportsModule: React.FC<ReportsModuleProps> = ({ company }) => {
           className="bg-green-700 hover:bg-green-800 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-3 shadow-lg shadow-green-700/20 transition-all active:scale-95"
         >
           <i className="fa-solid fa-file-excel"></i>
-          <span>Descargar Reporte Excel</span>
+          <span>Exportar {activeTab === 'equipment' ? 'Equipos' : activeTab === 'maintenance' ? 'Mantenimiento' : 'Licencias'}</span>
         </button>
       </div>
 
+      {/* BARRA DE FILTROS DE TIEMPO */}
+      <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 mb-8 flex flex-col md:flex-row gap-4 items-center">
+         <div className="flex items-center gap-2 text-gray-500 text-sm font-bold uppercase tracking-wider shrink-0">
+            <i className="fa-solid fa-filter"></i>
+            Filtrar Periodo:
+         </div>
+
+         <div className="flex flex-1 gap-4 w-full md:w-auto">
+             <div className="relative w-full md:w-48">
+                <span className="absolute top-2 left-3 text-[10px] font-bold text-gray-400 uppercase">Año</span>
+                <select 
+                  value={selectedYear}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setSelectedYear(val === 'all' ? 'all' : Number(val));
+                  }}
+                  className="w-full pt-5 pb-2 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan font-bold text-sm"
+                >
+                  <option value="all">Todo el Historial</option>
+                  {availableYears.map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+             </div>
+
+             <div className="relative w-full md:w-48">
+                <span className="absolute top-2 left-3 text-[10px] font-bold text-gray-400 uppercase">Mes</span>
+                <select 
+                  value={selectedMonth}
+                  onChange={(e) => {
+                     const val = e.target.value;
+                     setSelectedMonth(val === 'all' ? 'all' : Number(val));
+                  }}
+                  disabled={selectedYear === 'all'}
+                  className={`w-full pt-5 pb-2 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan font-bold text-sm transition-all ${selectedYear === 'all' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <option value="all">Todo el Año</option>
+                  {MONTHS.map((month, idx) => (
+                    <option key={idx} value={idx}>{month}</option>
+                  ))}
+                </select>
+             </div>
+         </div>
+         
+         <div className="text-right shrink-0">
+            <span className="block text-xs text-gray-400 font-bold uppercase tracking-wider">Periodo Visualizado</span>
+            <span className="block font-black text-brand-blue-dark">{periodLabel}</span>
+         </div>
+      </div>
+
       {/* TABS */}
-      <div className="flex p-1 bg-gray-200/50 rounded-xl mb-8 w-fit">
+      <div className="flex p-1 bg-gray-200/50 rounded-xl mb-8 w-fit overflow-x-auto">
          <button 
            onClick={() => setActiveTab('equipment')}
-           className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'equipment' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+           className={`px-6 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'equipment' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
          >
-           Equipos
+           Ingreso Equipos
          </button>
          <button 
            onClick={() => setActiveTab('maintenance')}
-           className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'maintenance' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+           className={`px-6 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'maintenance' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
          >
            Mantenimientos
          </button>
          <button 
            onClick={() => setActiveTab('licenses')}
-           className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'licenses' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+           className={`px-6 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'licenses' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
          >
-           Licencias
+           Contratación Licencias
          </button>
       </div>
 
       {/* CONTENIDO (VISTA PREVIA HTML) */}
       
       {activeTab === 'equipment' && (
-        <div className="space-y-6">
+        <div className="space-y-6 animate-in slide-in-from-bottom-2 duration-300">
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard label="Total Activos" value={equipment.length} icon="fa-computer" color="bg-brand-blue-cyan" />
-              <StatCard label="Asignados" value={equipment.filter(e => e.assignedTo).length} icon="fa-user-check" color="bg-brand-green-dark" />
-              <StatCard label="En Mantenimiento" value={equipment.filter(e => e.status === 'Mantenimiento').length} icon="fa-screwdriver-wrench" color="bg-brand-yellow" />
-              <StatCard label="Retirados/Baja" value={equipment.filter(e => e.status === 'Retirado' || e.status === 'Perdido').length} icon="fa-ban" color="bg-red-500" />
+              <StatCard label="Ingresados en Periodo" value={filteredEquipment.length} icon="fa-cart-plus" color="bg-brand-blue-cyan" />
+              <StatCard label="Asignados" value={filteredEquipment.filter(e => e.assignedTo).length} icon="fa-user-check" color="bg-brand-green-dark" />
+              <StatCard label="En Mantenimiento" value={filteredEquipment.filter(e => e.status === 'Mantenimiento').length} icon="fa-screwdriver-wrench" color="bg-brand-yellow" />
+              <StatCard label="Costo/Baja" value={filteredEquipment.filter(e => e.status === 'Retirado' || e.status === 'Perdido').length} icon="fa-ban" color="bg-red-500" />
            </div>
+           
            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center">
-              <div className="w-16 h-16 bg-green-50 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                 <i className="fa-solid fa-table text-2xl"></i>
-              </div>
-              <h3 className="text-lg font-bold text-gray-900">Vista Previa de Datos</h3>
-              <p className="text-gray-500 max-w-md mx-auto mb-6">La tabla contiene {equipment.length} registros listos para exportar con formato corporativo.</p>
-              <button onClick={exportEquipment} className="text-brand-blue-cyan font-bold hover:underline">Descargar ahora</button>
+              {filteredEquipment.length > 0 ? (
+                <>
+                  <div className="w-16 h-16 bg-green-50 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                     <i className="fa-solid fa-table text-2xl"></i>
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900">Datos Listos para Exportar</h3>
+                  <p className="text-gray-500 max-w-md mx-auto mb-6">Se encontraron {filteredEquipment.length} equipos ingresados o registrados en <strong>{periodLabel}</strong>.</p>
+                  <button onClick={exportEquipment} className="text-brand-blue-cyan font-bold hover:underline">Descargar Excel</button>
+                </>
+              ) : (
+                <div className="py-10">
+                   <i className="fa-solid fa-folder-open text-4xl text-gray-200 mb-4"></i>
+                   <p className="text-gray-400 font-bold">No se encontraron ingresos en {periodLabel}</p>
+                </div>
+              )}
            </div>
         </div>
       )}
 
       {activeTab === 'maintenance' && (
-        <div className="space-y-6">
+        <div className="space-y-6 animate-in slide-in-from-bottom-2 duration-300">
            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <StatCard label="Tickets Totales" value={maintenance.length} icon="fa-ticket" color="bg-brand-blue-dark" />
-              <StatCard label="Casos Abiertos" value={maintenance.filter(m => m.status === 'Open').length} icon="fa-clock" color="bg-brand-yellow" />
-              <StatCard label="Casos Críticos" value={maintenance.filter(m => m.severity === 'Severe' || m.severity === 'TotalLoss').length} icon="fa-fire" color="bg-red-500" />
+              <StatCard label="Tickets Generados" value={filteredMaintenance.length} icon="fa-ticket" color="bg-brand-blue-dark" />
+              <StatCard label="Aún Abiertos" value={filteredMaintenance.filter(m => m.status === 'Open').length} icon="fa-clock" color="bg-brand-yellow" />
+              <StatCard label="Críticos del Mes" value={filteredMaintenance.filter(m => m.severity === 'Severe' || m.severity === 'TotalLoss').length} icon="fa-fire" color="bg-red-500" />
            </div>
            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center">
-              <div className="w-16 h-16 bg-green-50 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                 <i className="fa-solid fa-table text-2xl"></i>
-              </div>
-              <h3 className="text-lg font-bold text-gray-900">Vista Previa de Datos</h3>
-              <p className="text-gray-500 max-w-md mx-auto mb-6">La tabla contiene {maintenance.length} registros listos para exportar con formato corporativo (incluye historial de soluciones).</p>
-              <button onClick={exportMaintenance} className="text-brand-blue-cyan font-bold hover:underline">Descargar ahora</button>
+              {filteredMaintenance.length > 0 ? (
+                <>
+                  <div className="w-16 h-16 bg-green-50 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                     <i className="fa-solid fa-table text-2xl"></i>
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900">Datos Listos para Exportar</h3>
+                  <p className="text-gray-500 max-w-md mx-auto mb-6">Se encontraron {filteredMaintenance.length} reportes de mantenimiento creados en <strong>{periodLabel}</strong>.</p>
+                  <button onClick={exportMaintenance} className="text-brand-blue-cyan font-bold hover:underline">Descargar Excel</button>
+                </>
+              ) : (
+                 <div className="py-10">
+                   <i className="fa-solid fa-check-circle text-4xl text-green-200 mb-4"></i>
+                   <p className="text-gray-400 font-bold">Sin incidencias reportadas en {periodLabel}</p>
+                </div>
+              )}
            </div>
         </div>
       )}
 
       {activeTab === 'licenses' && (
-        <div className="space-y-6">
+        <div className="space-y-6 animate-in slide-in-from-bottom-2 duration-300">
            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <StatCard label="Licencias Totales" value={licenses.length} icon="fa-certificate" color="bg-brand-blue-cyan" />
-              <StatCard label="Por Vencer (30 días)" value={licenses.filter(l => {
+              <StatCard label="Contratadas" value={filteredLicenses.length} icon="fa-file-signature" color="bg-brand-blue-cyan" />
+              <StatCard label="Por Vencer (30 días)" value={filteredLicenses.filter(l => {
                     const diff = new Date(l.expirationDate).getTime() - new Date().getTime();
                     const days = diff / (1000 * 3600 * 24);
                     return days > 0 && days <= 30;
                  }).length} icon="fa-hourglass-half" color="bg-brand-orange" />
-              <StatCard label="Vencidas" value={licenses.filter(l => new Date(l.expirationDate) < new Date()).length} icon="fa-triangle-exclamation" color="bg-red-500" />
+              <StatCard label="Ya Vencidas" value={filteredLicenses.filter(l => new Date(l.expirationDate) < new Date()).length} icon="fa-triangle-exclamation" color="bg-red-500" />
            </div>
            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center">
-              <div className="w-16 h-16 bg-green-50 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                 <i className="fa-solid fa-table text-2xl"></i>
-              </div>
-              <h3 className="text-lg font-bold text-gray-900">Vista Previa de Datos</h3>
-              <p className="text-gray-500 max-w-md mx-auto mb-6">La tabla contiene {licenses.length} registros listos para exportar con formato corporativo.</p>
-              <button onClick={exportLicenses} className="text-brand-blue-cyan font-bold hover:underline">Descargar ahora</button>
+              {filteredLicenses.length > 0 ? (
+                <>
+                  <div className="w-16 h-16 bg-green-50 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                     <i className="fa-solid fa-table text-2xl"></i>
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900">Datos Listos para Exportar</h3>
+                  <p className="text-gray-500 max-w-md mx-auto mb-6">Se encontraron {filteredLicenses.length} licencias iniciadas en <strong>{periodLabel}</strong>.</p>
+                  <button onClick={exportLicenses} className="text-brand-blue-cyan font-bold hover:underline">Descargar Excel</button>
+                </>
+              ) : (
+                <div className="py-10">
+                   <i className="fa-solid fa-folder-open text-4xl text-gray-200 mb-4"></i>
+                   <p className="text-gray-400 font-bold">No hay registros de contratación en {periodLabel}</p>
+                </div>
+              )}
            </div>
         </div>
       )}

@@ -89,7 +89,8 @@ const EquipmentForm: React.FC<EquipmentFormProps> = ({
     storage: '',
     os: '',
     assignedTo: undefined,
-    peripheralType: ''
+    peripheralType: '',
+    purchaseDate: new Date().toISOString().split('T')[0] // Default a hoy
   };
 
   const [formData, setFormData] = useState<Partial<Equipment>>(initialData || defaultData);
@@ -311,6 +312,17 @@ const EquipmentForm: React.FC<EquipmentFormProps> = ({
             ))}
           </select>
         </div>
+      </div>
+
+      <div>
+          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">Fecha de Ingreso</label>
+          <input 
+            type="date" 
+            required
+            value={formData.purchaseDate}
+            onChange={(e) => setFormData({...formData, purchaseDate: e.target.value})}
+            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-brand-blue-cyan/10 focus:border-brand-blue-cyan font-bold text-sm transition-all" 
+          />
       </div>
 
       <div className="pt-4 flex gap-4">

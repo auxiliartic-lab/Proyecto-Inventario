@@ -83,14 +83,16 @@ const EquipmentList: React.FC<EquipmentListProps> = ({ company, role }) => {
     setSelectedEquip(null);
   };
 
-  const handleMaintenanceSubmit = (reportData: { title: string, description: string, severity: MaintenanceSeverity }) => {
+  const handleMaintenanceSubmit = (reportData: { title: string, description: string, severity: MaintenanceSeverity, date: string }) => {
     if (selectedEquip) {
       addMaintenanceRecord({
         companyId: company.id,
         equipmentId: selectedEquip.id,
-        date: new Date().toISOString().split('T')[0],
+        date: reportData.date, // Usar la fecha seleccionada en el formulario
         status: 'Open',
-        ...reportData
+        title: reportData.title,
+        description: reportData.description,
+        severity: reportData.severity
       });
       setIsMaintenanceOpen(false);
       setSelectedEquip(null);
@@ -175,16 +177,17 @@ const EquipmentList: React.FC<EquipmentListProps> = ({ company, role }) => {
            const assignedUser = item.assignedTo ? collaborators.find(c => c.id === item.assignedTo) : null;
            
            // Lógica para detectar si tiene entrega pendiente
-           // Buscamos el último mantenimiento cerrado y verificamos su estado de entrega
            const lastMaintenance = (data.maintenance || [])
              .filter(m => m.equipmentId === item.id && m.status === 'Closed')
              .sort((a, b) => b.id - a.id)[0];
            
            const isPendingDelivery = lastMaintenance?.deliveryStatus === 'Pending';
-           
-           // Si está pendiente de entrega, sobrescribimos visualmente el estado "Activo"
            const displayStatus = isPendingDelivery ? 'Pendiente de Entrega' : item.status;
            
+           // Lógica de Ubicación: Si está asignado, mostrar Área del colaborador, sino Ubicación física
+           const displayLocation = assignedUser ? assignedUser.area : item.location;
+           const locationIcon = assignedUser ? 'fa-building-user' : 'fa-location-dot';
+
            return (
              <div key={item.id} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow group relative overflow-hidden">
                 <div className={`absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-gray-50 to-white opacity-50 rounded-bl-full -mr-4 -mt-4 pointer-events-none`}></div>
@@ -204,8 +207,8 @@ const EquipmentList: React.FC<EquipmentListProps> = ({ company, role }) => {
                 <div className="mb-4 relative z-10">
                    <h3 className="font-bold text-gray-900 text-lg leading-tight mb-1">{item.brand} {item.model}</h3>
                    <p className="text-xs text-gray-500 flex items-center gap-1.5">
-                     <i className="fa-solid fa-location-dot text-gray-300"></i>
-                     {item.location}
+                     <i className={`fa-solid ${locationIcon} text-gray-300`}></i>
+                     {displayLocation}
                    </p>
                 </div>
 
@@ -325,11 +328,18 @@ const EquipmentList: React.FC<EquipmentListProps> = ({ company, role }) => {
 
                     <div className="grid grid-cols-2 gap-4">
                        <div>
-                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Ubicación</p>
-                          <p className="font-bold text-gray-700 text-sm">{selectedEquip.location}</p>
+                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">
+                             {selectedEquip.assignedTo ? 'Área / Ubicación' : 'Ubicación Física'}
+                          </p>
+                          <p className="font-bold text-gray-700 text-sm">
+                             {(() => {
+                                const detailsAssignedUser = selectedEquip.assignedTo ? collaborators.find(c => c.id === selectedEquip.assignedTo) : null;
+                                return detailsAssignedUser ? detailsAssignedUser.area : selectedEquip.location;
+                             })()}
+                          </p>
                        </div>
                        <div>
-                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Fecha Compra</p>
+                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Fecha Ingreso</p>
                           <p className="font-bold text-gray-700 text-sm">{selectedEquip.purchaseDate || 'N/A'}</p>
                        </div>
                     </div>
