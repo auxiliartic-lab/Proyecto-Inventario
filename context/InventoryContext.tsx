@@ -25,6 +25,8 @@ interface InventoryContextType {
 
   // Maintenance Actions
   addMaintenanceRecord: (data: Omit<MaintenanceRecord, 'id'>) => void;
+  resolveTicket: (id: number, details: string, date: string, updatedSpecs?: Partial<Equipment>, markAsDelivered?: boolean) => void;
+  toggleMaintenanceDelivery: (id: number) => void;
 
   // System
   factoryReset: () => void;
@@ -66,9 +68,18 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const deleteEquipment = (id: number) => {
     if (!data) return;
+    
+    // 1. LIMPIEZA EN CASCADA: Eliminar historial de mantenimientos de este equipo
+    // Esto previene errores de "Equipo no encontrado" en el módulo de mantenimiento
+    const updatedMaintenance = (data.maintenance || []).filter(m => m.equipmentId !== id);
+
+    // 2. Eliminar el equipo de la lista principal
+    const updatedEquipment = data.equipment.filter(e => e.id !== id);
+    
     updateState({
       ...data,
-      equipment: data.equipment.filter(e => e.id !== id)
+      equipment: updatedEquipment,
+      maintenance: updatedMaintenance
     });
   };
 
@@ -90,9 +101,20 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const deleteCollaborator = (id: number) => {
     if (!data) return;
+
+    // 1. LIMPIEZA EN CASCADA: Desvincular equipos asignados a este colaborador
+    // Los equipos asignados pasan a estado "Sin Asignar" (stock)
+    const updatedEquipment = data.equipment.map(e => 
+      e.assignedTo === id ? { ...e, assignedTo: undefined } : e
+    );
+
+    // 2. Eliminar al colaborador
+    const updatedCollaborators = data.collaborators.filter(c => c.id !== id);
+
     updateState({
       ...data,
-      collaborators: data.collaborators.filter(c => c.id !== id)
+      equipment: updatedEquipment,
+      collaborators: updatedCollaborators
     });
   };
 
@@ -134,7 +156,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const newId = maintenanceList.length > 0 ? Math.max(...maintenanceList.map(m => m.id)) + 1 : 1;
     const newRecord = { ...recordData, id: newId };
 
-    // Update equipment status logic
+    // Actualizar estado del equipo según la severidad
     const updatedEquipment = data.equipment.map(e => {
       if (e.id === recordData.equipmentId) {
         if (recordData.severity === 'TotalLoss') {
@@ -150,6 +172,68 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       ...data,
       maintenance: [...maintenanceList, newRecord],
       equipment: updatedEquipment
+    });
+  };
+
+  const resolveTicket = (id: number, details: string, date: string, updatedSpecs?: Partial<Equipment>, markAsDelivered: boolean = false) => {
+    if (!data) return;
+
+    // 1. Encontrar el ticket
+    const ticket = data.maintenance.find(m => m.id === id);
+    if (!ticket) return;
+
+    // 2. Actualizar el Ticket a Cerrado
+    const updatedMaintenance = data.maintenance.map(m => 
+      m.id === id 
+        ? { 
+            ...m, 
+            status: 'Closed' as const, 
+            resolutionDetails: details, 
+            resolutionDate: date,
+            deliveryStatus: markAsDelivered ? ('Delivered' as const) : ('Pending' as const)
+          }
+        : m
+    );
+
+    // 3. Restaurar estado del equipo a Activo y actualizar specs si existen
+    const updatedEquipment = data.equipment.map(e => {
+      if (e.id === ticket.equipmentId) {
+        let updatedE = { ...e };
+        // Si no fue pérdida total, volver a activo
+        if (e.status === EquipmentStatus.MAINTENANCE) {
+          updatedE.status = EquipmentStatus.ACTIVE;
+          // NOTA: Se mantiene la asignación al usuario (e.assignedTo no se toca)
+        }
+        // Aplicar cambios de hardware si los hay
+        if (updatedSpecs) {
+          updatedE = { ...updatedE, ...updatedSpecs };
+        }
+        return updatedE;
+      }
+      return e;
+    });
+
+    updateState({
+      ...data,
+      maintenance: updatedMaintenance,
+      equipment: updatedEquipment
+    });
+  };
+
+  const toggleMaintenanceDelivery = (id: number) => {
+    if (!data) return;
+    
+    const updatedMaintenance = data.maintenance.map(m => {
+      if (m.id === id && m.status === 'Closed') {
+        const newStatus = m.deliveryStatus === 'Delivered' ? 'Pending' : 'Delivered';
+        return { ...m, deliveryStatus: newStatus as 'Pending' | 'Delivered' };
+      }
+      return m;
+    });
+
+    updateState({
+      ...data,
+      maintenance: updatedMaintenance
     });
   };
 
@@ -175,6 +259,8 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       updateLicense,
       deleteLicense,
       addMaintenanceRecord,
+      resolveTicket,
+      toggleMaintenanceDelivery,
       factoryReset
     }}>
       {children}

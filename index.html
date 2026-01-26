@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -22,6 +23,10 @@
               },
               fontFamily: {
                 sans: ['Plus Jakarta Sans', 'sans-serif'],
+              },
+              spacing: {
+                'sidebar': '20rem',
+                'header': '5rem'
               }
             }
           }
@@ -35,7 +40,7 @@
             margin: 0;
             padding: 0;
             width: 100%;
-            overflow-x: hidden; /* CRÍTICO: Elimina scroll horizontal global */
+            overflow-x: hidden;
             position: relative;
         }
 
@@ -44,18 +49,11 @@
             -webkit-tap-highlight-color: transparent;
         }
 
-        /* Utilidades para scrollbars bonitos pero no intrusivos */
         .custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         
-        .glass-card {
-            background: rgba(255, 255, 255, 0.8);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(226, 232, 240, 0.8);
-        }
-
         .animate-enter {
             animation: slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
@@ -78,7 +76,7 @@
 }
 </script>
 </head>
-<body class="bg-slate-50 text-slate-900 antialiased">
+<body class="bg-gray-50 text-gray-900 antialiased">
     <div id="root"></div>
     <script type="module" src="index.tsx"></script>
 </body>

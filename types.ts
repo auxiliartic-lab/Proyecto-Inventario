@@ -17,7 +17,7 @@ export type MaintenanceSeverity = 'Moderate' | 'Severe' | 'TotalLoss';
 export interface Company {
   id: number;
   name: string;
-  color: string;
+  color: string; // Tailwind class name (e.g., 'bg-brand-blue-dark')
   logo: string;
 }
 
@@ -57,6 +57,7 @@ export interface Equipment {
   ram?: string;
   storage?: string;
   os?: string;
+  peripheralType?: string; 
 }
 
 export interface SoftwareLicense {
@@ -80,6 +81,9 @@ export interface MaintenanceRecord {
   severity: MaintenanceSeverity;
   status: 'Open' | 'Closed';
   technician?: string;
+  resolutionDetails?: string;
+  resolutionDate?: string;
+  deliveryStatus?: 'Pending' | 'Delivered'; // Nuevo campo
 }
 
 export interface Credential {

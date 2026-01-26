@@ -10,6 +10,9 @@ const CredentialVault: React.FC<CredentialVaultProps> = ({ company }) => {
   const [showPassword, setShowPassword] = useState<Record<number, boolean>>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  
+  // Estado para Confirmación de Borrado
+  const [deleteConfirm, setDeleteConfirm] = useState<{isOpen: boolean, id: number | null}>({ isOpen: false, id: null });
 
   // Estado local para las credenciales (Simulación de base de datos)
   const [credentials, setCredentials] = useState<Credential[]>([
@@ -31,9 +34,14 @@ const CredentialVault: React.FC<CredentialVaultProps> = ({ company }) => {
     setShowPassword(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const handleDelete = (id: number) => {
-    if (confirm('¿Estás seguro de eliminar esta credencial?')) {
-      setCredentials(prev => prev.filter(c => c.id !== id));
+  const requestDelete = (id: number) => {
+    setDeleteConfirm({ isOpen: true, id });
+  };
+
+  const confirmDelete = () => {
+    if (deleteConfirm.id) {
+      setCredentials(prev => prev.filter(c => c.id !== deleteConfirm.id));
+      setDeleteConfirm({ isOpen: false, id: null });
     }
   };
 
@@ -135,6 +143,7 @@ const CredentialVault: React.FC<CredentialVaultProps> = ({ company }) => {
                         {showPassword[cred.id] ? cred.password : '••••••••••••'}
                       </span>
                       <button 
+                        type="button"
                         onClick={() => toggleVisibility(cred.id)}
                         className="w-8 h-8 flex items-center justify-center bg-white rounded-lg shadow-sm hover:text-brand-blue-cyan transition-colors"
                         title={showPassword[cred.id] ? "Ocultar" : "Mostrar"}
@@ -145,6 +154,7 @@ const CredentialVault: React.FC<CredentialVaultProps> = ({ company }) => {
                   
                   {/* Botón Editar */}
                   <button 
+                    type="button"
                     onClick={() => handleEdit(cred)}
                     className="w-10 h-10 flex items-center justify-center rounded-xl text-gray-300 hover:bg-brand-yellow/10 hover:text-brand-yellow transition-all"
                     title="Editar Credencial"
@@ -153,7 +163,8 @@ const CredentialVault: React.FC<CredentialVaultProps> = ({ company }) => {
                   </button>
 
                   <button 
-                    onClick={() => handleDelete(cred.id)}
+                    type="button"
+                    onClick={() => requestDelete(cred.id)}
                     className="w-10 h-10 flex items-center justify-center rounded-xl text-gray-300 hover:bg-red-50 hover:text-red-500 transition-all"
                     title="Eliminar Credencial"
                   >
@@ -175,6 +186,7 @@ const CredentialVault: React.FC<CredentialVaultProps> = ({ company }) => {
       {/* MODAL NUEVA / EDITAR CREDENCIAL */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4">
+          {/* ... formulario crear/editar ... */}
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="p-8">
               <div className="flex justify-between items-center mb-6">
@@ -248,6 +260,37 @@ const CredentialVault: React.FC<CredentialVaultProps> = ({ company }) => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL CONFIRMACION ELIMINAR --- */}
+      {deleteConfirm.isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center transform transition-all scale-100">
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500 text-2xl">
+              <i className="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">¿Estás seguro?</h3>
+            <p className="text-sm text-gray-500 mb-6">
+              Esta credencial se eliminará permanentemente de la bóveda segura.
+            </p>
+            <div className="flex gap-3">
+              <button 
+                type="button"
+                onClick={() => setDeleteConfirm({ isOpen: false, id: null })}
+                className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors"
+              >
+                Cancelar
+              </button>
+              <button 
+                type="button"
+                onClick={confirmDelete}
+                className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-lg shadow-red-500/30 transition-colors"
+              >
+                Sí, Eliminar
+              </button>
             </div>
           </div>
         </div>

@@ -35,6 +35,7 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{isOpen: boolean, id: number | null}>({ isOpen: false, id: null });
   
   // Estado para datos
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -92,11 +93,17 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
     setOpenMenuId(null);
   };
 
-  const handleDelete = (id: number) => {
-    if (window.confirm('¿Estás seguro de eliminar a este colaborador? Se perderá el historial de asignaciones.')) {
-      deleteCollaborator(id);
-    }
+  const requestDelete = (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDeleteConfirm({ isOpen: true, id });
     setOpenMenuId(null);
+  };
+
+  const confirmDelete = () => {
+    if (deleteConfirm.id) {
+      deleteCollaborator(deleteConfirm.id);
+      setDeleteConfirm({ isOpen: false, id: null });
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -129,6 +136,7 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
           <p className="text-gray-500">Administra los colaboradores responsables de activos en {company.name}</p>
         </div>
         <button 
+          type="button"
           onClick={handleOpenCreate}
           className="w-full md:w-auto bg-brand-blue-cyan text-white px-5 py-2.5 rounded-xl font-bold hover:bg-brand-blue-dark transition-all shadow-lg shadow-brand-blue-cyan/10 flex items-center justify-center gap-2"
         >
@@ -165,13 +173,15 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
                 <div className="mt-5 pt-4 border-t border-gray-50 flex items-center justify-between relative">
                    <div className="flex gap-2">
                       <button 
+                        type="button"
                         onClick={() => handleToggleStatus(c.id)}
                         className={`text-[10px] font-bold px-3 py-1 rounded-lg transition-colors ${c.isActive ? 'bg-brand-yellow/10 text-brand-yellow hover:bg-brand-yellow/20' : 'bg-brand-green-light/10 text-brand-green-dark hover:bg-brand-green-light/20'}`}
                       >
                         {c.isActive ? 'Desactivar' : 'Activar'}
                       </button>
                       <button 
-                        onClick={() => handleDelete(c.id)}
+                        type="button"
+                        onClick={(e) => requestDelete(c.id, e)}
                         className="text-[10px] font-bold px-3 py-1 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
                       >
                         Eliminar
@@ -181,6 +191,7 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
                    {/* Botón de Menú (Tres puntos) */}
                    <div className="relative">
                      <button 
+                       type="button"
                        onClick={() => setOpenMenuId(openMenuId === c.id ? null : c.id)}
                        className="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-brand-blue-cyan hover:bg-brand-blue-cyan/10 transition-colors"
                      >
@@ -195,6 +206,7 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
                        >
                          <div className="py-1">
                            <button 
+                             type="button"
                              onClick={() => handleViewDetails(c)}
                              className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-brand-blue-cyan font-medium flex items-center gap-2 transition-colors"
                            >
@@ -202,6 +214,7 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
                              Ver Detalles
                            </button>
                            <button 
+                             type="button"
                              onClick={() => handleEdit(c)}
                              className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-brand-yellow font-medium flex items-center gap-2 transition-colors"
                            >
@@ -210,7 +223,8 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
                            </button>
                            <div className="border-t border-gray-100 my-1"></div>
                            <button 
-                             onClick={() => handleDelete(c.id)}
+                             type="button"
+                             onClick={(e) => requestDelete(c.id, e)}
                              className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 font-medium flex items-center gap-2 transition-colors"
                            >
                              <i className="fa-solid fa-trash-can text-xs w-5 text-center"></i>
@@ -237,8 +251,9 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
       {/* MODAL CREAR / EDITAR */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="p-8">
+              {/* ... formulario ... */}
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold text-gray-900">
                   {editingId ? 'Editar Colaborador' : 'Nuevo Colaborador'}
@@ -351,6 +366,7 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
             <div className="h-24 bg-gradient-to-r from-brand-blue-cyan to-brand-blue-dark"></div>
             
             <div className="px-8 pb-8 -mt-12 relative">
+               {/* ... contenido tarjeta ... */}
                <div className="flex justify-center mb-4">
                   <img 
                     src={selectedCollaborator.sex === 'Female' ? AVATAR_FEMALE : AVATAR_MALE} 
@@ -399,6 +415,37 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
                >
                  Cerrar Tarjeta
                </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL CONFIRMACION ELIMINAR --- */}
+      {deleteConfirm.isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center transform transition-all scale-100">
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500 text-2xl">
+              <i className="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">¿Estás seguro?</h3>
+            <p className="text-sm text-gray-500 mb-6">
+              Esta acción eliminará al colaborador y desvinculará todos sus equipos asignados.
+            </p>
+            <div className="flex gap-3">
+              <button 
+                type="button"
+                onClick={() => setDeleteConfirm({ isOpen: false, id: null })}
+                className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors"
+              >
+                Cancelar
+              </button>
+              <button 
+                type="button"
+                onClick={confirmDelete}
+                className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-lg shadow-red-500/30 transition-colors"
+              >
+                Sí, Eliminar
+              </button>
             </div>
           </div>
         </div>

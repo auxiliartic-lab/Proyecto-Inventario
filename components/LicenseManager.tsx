@@ -19,6 +19,9 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
   // Estado para el modal de detalles
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [selectedLicense, setSelectedLicense] = useState<SoftwareLicense | null>(null);
+  
+  // Estado para Confirmación de Borrado
+  const [deleteConfirm, setDeleteConfirm] = useState<{isOpen: boolean, id: number | null}>({ isOpen: false, id: null });
 
   const [filterMode, setFilterMode] = useState<'All' | 'Priority'>('All');
   
@@ -100,9 +103,14 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
     }
   };
 
-  const handleDelete = (id: number) => {
-    if (window.confirm('¿Eliminar esta licencia?')) {
-      deleteLicense(id);
+  const requestDelete = (id: number) => {
+    setDeleteConfirm({ isOpen: true, id });
+  };
+
+  const confirmDelete = () => {
+    if (deleteConfirm.id) {
+      deleteLicense(deleteConfirm.id);
+      setDeleteConfirm({ isOpen: false, id: null });
     }
   };
 
@@ -125,6 +133,7 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
           <p className="text-gray-500">Control de expiraciones y claves para {company.name}</p>
         </div>
         <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+           {/* ... botones filtro ... */}
            <div className="bg-white border border-gray-200 rounded-xl p-1 flex w-full md:w-auto">
               <button 
                 onClick={() => setFilterMode('All')}
@@ -198,6 +207,7 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
                     <td className="px-6 py-4 text-right">
                        <div className="flex items-center justify-end gap-2">
                          <button 
+                            type="button"
                             onClick={() => handleViewDetails(license)} 
                             className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue-cyan hover:bg-brand-blue-cyan/10 transition-colors" 
                             title="Ver Detalles"
@@ -205,6 +215,7 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
                             <i className="fa-solid fa-eye"></i>
                          </button>
                          <button 
+                            type="button"
                             onClick={() => handleEdit(license)} 
                             className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-yellow hover:bg-brand-yellow/10 transition-colors" 
                             title="Editar"
@@ -212,7 +223,8 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
                             <i className="fa-solid fa-pen"></i>
                          </button>
                          <button 
-                            onClick={() => handleDelete(license.id)} 
+                            type="button"
+                            onClick={() => requestDelete(license.id)} 
                             className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors" 
                             title="Eliminar"
                          >
@@ -248,7 +260,7 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
                       <button onClick={() => handleEdit(license)} className="text-gray-300 hover:text-brand-yellow p-2 rounded-lg hover:bg-gray-50 transition-colors">
                         <i className="fa-solid fa-pen"></i>
                       </button>
-                      <button onClick={() => handleDelete(license.id)} className="text-gray-300 hover:text-red-500 p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                      <button onClick={() => requestDelete(license.id)} className="text-gray-300 hover:text-red-500 p-2 rounded-lg hover:bg-gray-50 transition-colors">
                         <i className="fa-solid fa-trash-can"></i>
                       </button>
                     </div>
@@ -279,18 +291,10 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
          })}
       </div>
 
-      {filteredLicenses.length === 0 && (
-           <div className="p-16 text-center">
-              <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-300">
-                 <i className="fa-solid fa-check text-2xl"></i>
-              </div>
-              <p className="text-gray-500 font-medium">No hay licencias que mostrar con este filtro.</p>
-           </div>
-      )}
-
       {/* MODAL DETALLES DE LICENCIA */}
       {viewModalOpen && selectedLicense && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4 overflow-y-auto">
+          {/* ... contenido modal detalles ... */}
           <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl animate-in zoom-in-95 duration-200">
              <div className="p-8">
                 {/* Header */}
@@ -379,6 +383,7 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
       {/* MODAL NUEVA / EDITAR LICENCIA */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4">
+          {/* ... formulario crear/editar ... */}
           <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="p-8">
               <div className="flex justify-between items-center mb-6">
@@ -473,6 +478,37 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL CONFIRMACION ELIMINAR --- */}
+      {deleteConfirm.isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center transform transition-all scale-100">
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500 text-2xl">
+              <i className="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">¿Estás seguro?</h3>
+            <p className="text-sm text-gray-500 mb-6">
+              Esta licencia se eliminará permanentemente del registro de la compañía.
+            </p>
+            <div className="flex gap-3">
+              <button 
+                type="button"
+                onClick={() => setDeleteConfirm({ isOpen: false, id: null })}
+                className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors"
+              >
+                Cancelar
+              </button>
+              <button 
+                type="button"
+                onClick={confirmDelete}
+                className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-lg shadow-red-500/30 transition-colors"
+              >
+                Sí, Eliminar
+              </button>
             </div>
           </div>
         </div>

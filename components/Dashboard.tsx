@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Company, EquipmentStatus } from '../types';
+import { Company } from '../types';
 import { useInventory } from '../context/InventoryContext';
 
 interface DashboardProps {
@@ -10,45 +10,33 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ company }) => {
   const { data, factoryReset } = useInventory();
   
-  // --- LÓGICA DE DATOS REALES ---
-
-  // 1. Filtrar datos por empresa
+  // Filtros y Lógica
   const equipment = data.equipment.filter(e => e.companyId === company.id);
   const licenses = data.licenses.filter(l => l.companyId === company.id);
   const maintenance = (data.maintenance || []).filter(m => m.companyId === company.id && m.status === 'Open');
 
-  // 2. Cálculos de KPIs
   const totalEquipos = equipment.length;
   const equiposAsignados = equipment.filter(e => e.assignedTo).length;
   const equiposStock = totalEquipos - equiposAsignados;
   const porcentajeAsignacion = totalEquipos > 0 ? Math.round((equiposAsignados / totalEquipos) * 100) : 0;
 
-  // 3. Lógica de Licencias (Vencen en próximos 60 días)
   const expiringLicenses = licenses
     .filter(l => {
       const days = Math.ceil((new Date(l.expirationDate).getTime() - new Date().getTime()) / (1000 * 3600 * 24));
-      return days <= 60; // Mostrar vencidas o por vencer en 2 meses
+      return days <= 60;
     })
     .sort((a, b) => new Date(a.expirationDate).getTime() - new Date(b.expirationDate).getTime())
-    .slice(0, 5); // Top 5
+    .slice(0, 5);
 
-  // 4. Mantenimientos Críticos
   const criticalMaintenance = maintenance
     .filter(m => m.severity === 'Severe' || m.severity === 'TotalLoss')
     .slice(0, 3);
 
-  // 5. Últimos equipos agregados (Basado en ID más alto como proxy de "reciente" o fecha compra)
-  const recentEquipment = [...equipment]
-    .sort((a, b) => b.id - a.id)
-    .slice(0, 5);
+  const recentEquipment = [...equipment].sort((a, b) => b.id - a.id).slice(0, 5);
 
   const handleReset = () => {
-    if (confirm('¡Atención! Esto borrará todos los datos y restaurará el estado inicial de fábrica. ¿Confirmar?')) {
-      factoryReset();
-    }
+    if (confirm('¿Confirmar restauración de fábrica?')) factoryReset();
   };
-
-  // --- COMPONENTES UI INTERNOS ---
 
   const KpiCard = ({ label, value, subtext, icon, colorClass, trend }: any) => (
     <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col justify-between h-full relative overflow-hidden group">
@@ -80,11 +68,14 @@ const Dashboard: React.FC<DashboardProps> = ({ company }) => {
       <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Tablero de Control</h1>
-          <p className="text-gray-500 mt-1">Visión general operativa de <span className="font-bold text-gray-800">{company.name}</span></p>
+          <p className="text-gray-500 mt-1">Visión general operativa de <span className="font-bold text-gray-900">{company.name}</span></p>
         </div>
         <div className="text-right hidden md:block">
-           <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Última actualización</p>
-           <p className="text-sm font-mono text-gray-600">{new Date().toLocaleTimeString()} (Tiempo Real)</p>
+           <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Estado del Sistema</p>
+           <div className="flex items-center gap-2 justify-end mt-1">
+             <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+             <p className="text-sm font-mono text-gray-900">En Línea</p>
+           </div>
         </div>
       </div>
 
@@ -93,22 +84,22 @@ const Dashboard: React.FC<DashboardProps> = ({ company }) => {
         <KpiCard 
           label="Total Equipos" 
           value={totalEquipos} 
-          subtext={`${equiposStock} en stock disponible`}
+          subtext={`${equiposStock} en stock`}
           icon="fa-laptop" 
           colorClass="bg-brand-blue-dark from-brand-blue-dark to-brand-blue-cyan"
         />
         
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col justify-between h-full relative overflow-hidden">
            <div className="flex justify-between items-start mb-2">
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-lg bg-brand-green-dark">
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-lg bg-green-600">
                  <i className="fa-solid fa-chart-pie text-xl"></i>
               </div>
-              <span className="text-2xl font-black text-brand-green-dark">{porcentajeAsignacion}%</span>
+              <span className="text-2xl font-black text-green-600">{porcentajeAsignacion}%</span>
            </div>
            <div>
               <p className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-3">Tasa de Asignación</p>
               <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
-                 <div className="h-full bg-brand-green-dark transition-all duration-1000" style={{ width: `${porcentajeAsignacion}%` }}></div>
+                 <div className="h-full bg-green-600 transition-all duration-1000" style={{ width: `${porcentajeAsignacion}%` }}></div>
               </div>
               <div className="flex justify-between mt-2 text-[10px] font-bold text-gray-400 uppercase">
                  <span>{equiposAsignados} Asignados</span>
@@ -120,19 +111,19 @@ const Dashboard: React.FC<DashboardProps> = ({ company }) => {
         <KpiCard 
           label="Licencias Activas" 
           value={licenses.length} 
-          subtext={`${expiringLicenses.length} requieren atención`}
+          subtext="Control de software"
           icon="fa-certificate" 
-          colorClass="bg-brand-blue-cyan from-brand-blue-cyan to-cyan-300"
-          trend={expiringLicenses.length > 0 ? "Alertas" : "OK"}
+          colorClass="bg-brand-blue-cyan"
+          trend="Monitor"
         />
 
         <KpiCard 
           label="Mantenimientos" 
           value={maintenance.length} 
-          subtext={`${criticalMaintenance.length} casos críticos`}
+          subtext={`${criticalMaintenance.length} críticos`}
           icon="fa-screwdriver-wrench" 
-          colorClass="bg-brand-yellow from-brand-yellow to-orange-400"
-          trend={maintenance.length > 0 ? "En proceso" : "Sin casos"}
+          colorClass="bg-brand-yellow"
+          trend="Activos"
         />
       </div>
 
@@ -144,19 +135,19 @@ const Dashboard: React.FC<DashboardProps> = ({ company }) => {
           
           {/* ÚLTIMOS INGRESOS */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="p-6 border-b border-gray-50 flex justify-between items-center">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center">
               <h3 className="font-bold text-gray-900 flex items-center gap-2">
                 <i className="fa-solid fa-box-open text-brand-blue-cyan"></i>
                 Últimos Equipos Ingresados
               </h3>
             </div>
-            <div className="divide-y divide-gray-50">
+            <div className="divide-y divide-gray-100">
               {recentEquipment.length > 0 ? recentEquipment.map((item) => {
                  const assignee = data.collaborators.find(c => c.id === item.assignedTo);
                  return (
                   <div key={item.id} className="p-4 hover:bg-gray-50 transition-colors flex items-center justify-between group">
                     <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-500 group-hover:bg-brand-blue-cyan group-hover:text-white transition-colors">
+                      <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-brand-blue-cyan group-hover:text-white transition-colors">
                         <i className={`fa-solid ${item.type === 'Laptop' ? 'fa-laptop' : 'fa-desktop'}`}></i>
                       </div>
                       <div>
@@ -198,7 +189,7 @@ const Dashboard: React.FC<DashboardProps> = ({ company }) => {
                      <div key={m.id} className="bg-white p-4 rounded-xl border border-red-100 shadow-sm flex flex-col sm:flex-row justify-between gap-4">
                         <div>
                            <p className="font-black text-gray-900">{m.title}</p>
-                           <p className="text-sm text-gray-600">{m.description}</p>
+                           <p className="text-sm text-gray-500">{m.description}</p>
                            <p className="text-xs text-red-500 font-bold mt-1 uppercase">
                              {equip ? `${equip.type} ${equip.brand}` : 'Equipo desconocido'}
                            </p>
@@ -207,7 +198,6 @@ const Dashboard: React.FC<DashboardProps> = ({ company }) => {
                            <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-[10px] font-black uppercase tracking-wider">
                              {m.severity === 'TotalLoss' ? 'Pérdida Total' : 'Severo'}
                            </span>
-                           <span className="text-[10px] text-gray-400 font-mono">{m.date}</span>
                         </div>
                      </div>
                    );
@@ -223,7 +213,7 @@ const Dashboard: React.FC<DashboardProps> = ({ company }) => {
           {/* PRÓXIMOS VENCIMIENTOS (LICENCIAS) */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 relative overflow-hidden">
             <h3 className="font-bold text-gray-900 mb-6 flex items-center gap-2">
-               <i className="fa-solid fa-clock text-brand-yellow"></i>
+               <i className="fa-solid fa-clock text-brand-orange"></i>
                Vencimientos (60 días)
             </h3>
             
@@ -236,7 +226,7 @@ const Dashboard: React.FC<DashboardProps> = ({ company }) => {
                  const isExpired = days < 0;
 
                  return (
-                   <div key={l.id} className={`p-4 rounded-xl border-l-4 ${isExpired ? 'bg-red-50 border-red-500' : days <= 30 ? 'bg-orange-50 border-orange-400' : 'bg-yellow-50 border-yellow-400'}`}>
+                   <div key={l.id} className={`p-4 rounded-xl border-l-4 bg-gray-50 ${isExpired ? 'border-red-500' : 'border-brand-orange'}`}>
                       <div className="flex justify-between items-start mb-1">
                         <p className="font-bold text-gray-900 text-sm">{l.name}</p>
                         {isExpired ? (
@@ -246,13 +236,12 @@ const Dashboard: React.FC<DashboardProps> = ({ company }) => {
                         )}
                       </div>
                       <p className="text-xs text-gray-500 truncate">{l.vendor}</p>
-                      <p className="text-[10px] text-gray-400 font-mono mt-1">{l.expirationDate}</p>
                    </div>
                  );
               }) : (
                  <div className="text-center py-8">
                     <i className="fa-solid fa-check-circle text-4xl text-green-200 mb-2"></i>
-                    <p className="text-sm text-gray-500 font-medium">No hay licencias próximas a vencer.</p>
+                    <p className="text-sm text-gray-400 font-medium">No hay licencias próximas a vencer.</p>
                  </div>
               )}
             </div>
@@ -260,13 +249,10 @@ const Dashboard: React.FC<DashboardProps> = ({ company }) => {
 
           {/* ACCIONES RÁPIDAS / DATA ZONE */}
           <div className="bg-gray-50 rounded-2xl p-6 border-2 border-dashed border-gray-200">
-             <h3 className="font-bold text-gray-700 text-sm uppercase tracking-widest mb-4">Zona de Datos</h3>
-             <p className="text-xs text-gray-500 mb-4 leading-relaxed">
-               Los datos se guardan automáticamente en tu navegador. Si necesitas limpiar la base de datos para pruebas, usa el siguiente botón.
-             </p>
+             <h3 className="font-bold text-gray-900 text-sm uppercase tracking-widest mb-4">Zona de Datos</h3>
              <button 
                onClick={handleReset}
-               className="w-full py-3 bg-white border border-gray-300 text-red-600 hover:bg-red-50 hover:border-red-200 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-sm"
+               className="w-full py-3 bg-white border border-gray-200 text-red-600 hover:bg-red-50 hover:border-red-200 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-sm"
              >
                <i className="fa-solid fa-rotate-right"></i>
                Reset de Fábrica

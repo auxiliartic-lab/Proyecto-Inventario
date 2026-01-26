@@ -2,6 +2,8 @@
 import React, { useState } from 'react';
 import { Company, Equipment, EquipmentStatus, UserRole, MaintenanceSeverity } from '../types';
 import { useInventory } from '../context/InventoryContext';
+import EquipmentForm from './forms/EquipmentForm';
+import MaintenanceReportForm from './forms/MaintenanceReportForm';
 
 interface EquipmentListProps {
   company: Company;
@@ -9,162 +11,140 @@ interface EquipmentListProps {
 }
 
 const EquipmentList: React.FC<EquipmentListProps> = ({ company, role }) => {
-  // 1. Hook del Contexto (Única fuente de verdad)
-  const { 
-    data, 
-    addEquipment, 
-    updateEquipment, 
-    addMaintenanceRecord 
-  } = useInventory();
-
-  // 2. Estado local solo para UI (Modales, filtros, formularios)
-  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
-  const [isMaintenanceModalOpen, setIsMaintenanceModalOpen] = useState<boolean>(false);
-  const [maintenanceItem, setMaintenanceItem] = useState<Equipment | null>(null);
-  const [maintenanceData, setMaintenanceData] = useState({
-    title: '',
-    description: '',
-    severity: 'Moderate' as MaintenanceSeverity
-  });
+  const { data, addEquipment, updateEquipment, deleteEquipment, addMaintenanceRecord } = useInventory();
+  
+  // Modals
+  const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [isMaintenanceOpen, setIsMaintenanceOpen] = useState(false);
+  const [selectedEquip, setSelectedEquip] = useState<Equipment | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{isOpen: boolean, id: number | null}>({ isOpen: false, id: null });
 
-  // 3. Derivar datos directamente del contexto (Reactivo)
-  // Cuando el contexto cambie, esto se recalcula automáticamente
-  const items = data.equipment.filter(e => e.companyId === company.id);
-  const collaborators = data.collaborators.filter(c => c.companyId === company.id && c.isActive);
+  // Filters
+  const [filterType, setFilterType] = useState('Todos');
+  const [searchTerm, setSearchTerm] = useState('');
 
-  // Estado inicial del formulario
-  const initialFormData: Partial<Equipment> = {
-    type: 'Laptop',
-    brand: '',
-    model: '',
-    serialNumber: '',
-    status: EquipmentStatus.ACTIVE,
-    location: '',
-    processor: '',
-    ram: '',
-    storage: '',
-    os: '',
-    assignedTo: undefined
-  };
+  const equipmentList = data.equipment.filter(e => e.companyId === company.id);
+  const collaborators = data.collaborators.filter(c => c.companyId === company.id);
 
-  const [formData, setFormData] = useState<Partial<Equipment>>(initialFormData);
+  const filteredEquipment = equipmentList.filter(item => {
+    const matchesType = filterType === 'Todos' || item.type === filterType;
+    const matchesSearch = 
+      item.brand.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.serialNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (item.assignedTo && collaborators.find(c => c.id === item.assignedTo)?.firstName.toLowerCase().includes(searchTerm.toLowerCase()));
+    return matchesType && matchesSearch;
+  });
 
-  const filteredItems = items.filter(item => 
-    item.brand.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.serialNumber.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const getEquipmentTypes = () => ['Todos', ...Array.from(new Set(equipmentList.map(e => e.type)))];
 
-  const getStatusStyle = (status: EquipmentStatus) => {
-    switch (status) {
-      case EquipmentStatus.ACTIVE: return 'bg-brand-green-light/20 text-brand-green-dark';
-      case EquipmentStatus.MAINTENANCE: return 'bg-brand-yellow/20 text-amber-700';
-      case EquipmentStatus.RETIRED: return 'bg-gray-100 text-gray-700';
-      case EquipmentStatus.LOST: return 'bg-red-100 text-red-700';
-      default: return 'bg-brand-blue-cyan/10 text-brand-blue-dark';
-    }
-  };
-
-  const handleOpenModal = (item?: Equipment) => {
-    if (item) {
-      setEditingId(item.id);
-      setFormData({ ...item });
-    } else {
-      setEditingId(null);
-      setFormData(initialFormData);
-    }
-    setIsModalOpen(true);
-  };
-
-  const handleOpenMaintenance = (item: Equipment) => {
-    setMaintenanceItem(item);
-    setMaintenanceData({ title: '', description: '', severity: 'Moderate' });
-    setIsMaintenanceModalOpen(true);
-  };
-
-  const handleSubmitMaintenance = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!maintenanceItem) return;
-
-    // Llama a la acción del contexto
-    addMaintenanceRecord({
-      companyId: company.id,
-      equipmentId: maintenanceItem.id,
-      date: new Date().toISOString().split('T')[0],
-      title: maintenanceData.title,
-      description: maintenanceData.description,
-      severity: maintenanceData.severity,
-      status: 'Open',
-      technician: role === UserRole.TECHNICIAN ? 'Técnico Actual' : 'Por Asignar'
-    });
-
-    setIsMaintenanceModalOpen(false);
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.brand || !formData.model || !formData.serialNumber) {
-      alert('Por favor completa los campos obligatorios.');
-      return;
-    }
-
-    if (editingId) {
-      // Actualizar vía Contexto
-      const updatedEquipment: Equipment = {
-        ...(formData as Equipment),
-        id: editingId,
-        companyId: company.id
-      };
-      updateEquipment(updatedEquipment);
-    } else {
-      // Crear vía Contexto
-      const equipmentToSave: Omit<Equipment, 'id'> = {
-        type: formData.type || 'Laptop',
-        brand: formData.brand || '',
-        model: formData.model || '',
-        serialNumber: formData.serialNumber || '',
-        status: formData.status || EquipmentStatus.ACTIVE,
-        location: formData.location || '',
-        processor: formData.processor,
-        ram: formData.ram,
-        storage: formData.storage,
-        os: formData.os,
-        assignedTo: formData.assignedTo,
-        companyId: company.id,
-        siteId: 1,
-        purchaseDate: new Date().toISOString().split('T')[0]
-      };
-      addEquipment(equipmentToSave);
-    }
-
-    setIsModalOpen(false);
-    setFormData(initialFormData);
+  const handleCreate = () => {
     setEditingId(null);
+    setIsFormOpen(true);
+  };
+
+  const handleEdit = (equip: Equipment) => {
+    setEditingId(equip.id);
+    setSelectedEquip(equip);
+    setIsFormOpen(true);
+  };
+
+  const handleViewDetails = (equip: Equipment) => {
+    setSelectedEquip(equip);
+    setIsDetailsOpen(true);
+  };
+
+  const handleReportMaintenance = (equip: Equipment) => {
+    setSelectedEquip(equip);
+    setIsMaintenanceOpen(true);
+  };
+
+  const requestDelete = (id: number) => {
+    setDeleteConfirm({ isOpen: true, id });
+  };
+
+  const confirmDelete = () => {
+    if (deleteConfirm.id) {
+      deleteEquipment(deleteConfirm.id);
+      setDeleteConfirm({ isOpen: false, id: null });
+    }
+  };
+
+  const handleFormSubmit = (formData: Partial<Equipment>) => {
+    if (editingId && selectedEquip) {
+      updateEquipment({ ...selectedEquip, ...formData } as Equipment);
+    } else {
+      addEquipment({ ...formData, companyId: company.id, siteId: 1 } as Omit<Equipment, 'id'>);
+    }
+    setIsFormOpen(false);
+    setEditingId(null);
+    setSelectedEquip(null);
+  };
+
+  const handleMaintenanceSubmit = (reportData: { title: string, description: string, severity: MaintenanceSeverity }) => {
+    if (selectedEquip) {
+      addMaintenanceRecord({
+        companyId: company.id,
+        equipmentId: selectedEquip.id,
+        date: new Date().toISOString().split('T')[0],
+        status: 'Open',
+        ...reportData
+      });
+      setIsMaintenanceOpen(false);
+      setSelectedEquip(null);
+    }
+  };
+
+  // Helper para asignar color al estado
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case EquipmentStatus.ACTIVE: return 'bg-green-100 text-green-700 border-green-200';
+      case EquipmentStatus.MAINTENANCE: return 'bg-brand-yellow/10 text-yellow-700 border-yellow-200';
+      case EquipmentStatus.RETIRED: return 'bg-gray-100 text-gray-500 border-gray-200';
+      case EquipmentStatus.LOST: return 'bg-red-100 text-red-700 border-red-200';
+      case 'Pendiente de Entrega': return 'bg-orange-100 text-orange-700 border-orange-200';
+      default: return 'bg-gray-100 text-gray-600';
+    }
+  };
+
+  const getIconForType = (type: string) => {
+    switch (type) {
+      case 'Laptop': return 'fa-laptop';
+      case 'Desktop': return 'fa-desktop';
+      case 'Servidor': return 'fa-server';
+      case 'Tablet': return 'fa-tablet-screen-button';
+      case 'Smartphone': return 'fa-mobile-screen-button';
+      case 'Periférico': return 'fa-keyboard';
+      default: return 'fa-box';
+    }
   };
 
   return (
-    <div className="animate-in slide-in-from-bottom-4 duration-500 pb-20">
+    <div className="animate-in fade-in duration-500 pb-20">
+      {/* Header & Controls */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <div>
-          <h1 className="text-2xl font-black text-gray-900 tracking-tight">Inventario de Equipos</h1>
-          <p className="text-gray-500 text-sm font-medium">Gestión de activos tecnológicos para {company.name}</p>
+          <h1 className="text-2xl font-bold text-gray-900">Inventario de Equipos</h1>
+          <p className="text-gray-500">Gestión de activos tecnológicos para {company.name}</p>
         </div>
+        
         <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-          <div className="relative flex-1 md:w-64">
-            <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
-            <input 
-              type="text" 
-              placeholder="Buscar serie o modelo..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-4 focus:ring-brand-blue-cyan/10 focus:border-brand-blue-cyan transition-all outline-none text-sm"
-            />
+          <div className="relative group w-full sm:w-64">
+             <i className="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-brand-blue-cyan transition-colors"></i>
+             <input 
+               type="text" 
+               placeholder="Buscar serial, marca..." 
+               value={searchTerm}
+               onChange={(e) => setSearchTerm(e.target.value)}
+               className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan transition-all text-sm font-medium"
+             />
           </div>
+          
           <button 
-            onClick={() => handleOpenModal()}
-            className="flex items-center justify-center gap-2 bg-brand-blue-cyan hover:bg-brand-blue-dark text-white px-6 py-2.5 rounded-xl shadow-lg shadow-brand-blue-cyan/10 font-bold text-sm transition-all shrink-0"
+            onClick={handleCreate}
+            className="bg-brand-blue-cyan text-white px-5 py-2.5 rounded-xl font-bold hover:bg-brand-blue-dark transition-all shadow-lg shadow-brand-blue-cyan/10 flex items-center justify-center gap-2 shrink-0"
           >
             <i className="fa-solid fa-plus"></i>
             <span>Nuevo Equipo</span>
@@ -172,463 +152,260 @@ const EquipmentList: React.FC<EquipmentListProps> = ({ company, role }) => {
         </div>
       </div>
 
-      {/* --- VISTA DESKTOP (TABLA) --- */}
-      <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-gray-50 border-b border-gray-100">
-              <tr>
-                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Activo</th>
-                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Marca / Modelo</th>
-                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest hidden lg:table-cell">Especificaciones</th>
-                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">No. Serie</th>
-                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Estado</th>
-                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Asignado</th>
-                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filteredItems.map((item) => {
-                const assignee = collaborators.find(c => c.id === item.assignedTo);
+      {/* Filter Tabs */}
+      <div className="flex gap-2 overflow-x-auto pb-4 mb-2 custom-scrollbar">
+        {getEquipmentTypes().map(type => (
+          <button
+            key={type}
+            onClick={() => setFilterType(type)}
+            className={`px-4 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-all border ${
+              filterType === type 
+                ? 'bg-gray-900 text-white border-gray-900 shadow-md' 
+                : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
+            }`}
+          >
+            {type}
+          </button>
+        ))}
+      </div>
+
+      {/* Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        {filteredEquipment.map(item => {
+           const assignedUser = item.assignedTo ? collaborators.find(c => c.id === item.assignedTo) : null;
+           
+           // Lógica para detectar si tiene entrega pendiente
+           // Buscamos el último mantenimiento cerrado y verificamos su estado de entrega
+           const lastMaintenance = (data.maintenance || [])
+             .filter(m => m.equipmentId === item.id && m.status === 'Closed')
+             .sort((a, b) => b.id - a.id)[0];
+           
+           const isPendingDelivery = lastMaintenance?.deliveryStatus === 'Pending';
+           
+           // Si está pendiente de entrega, sobrescribimos visualmente el estado "Activo"
+           const displayStatus = isPendingDelivery ? 'Pendiente de Entrega' : item.status;
+           
+           return (
+             <div key={item.id} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow group relative overflow-hidden">
+                <div className={`absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-gray-50 to-white opacity-50 rounded-bl-full -mr-4 -mt-4 pointer-events-none`}></div>
                 
-                return (
-                <tr key={item.id} className="hover:bg-gray-50/50 transition-colors group text-sm">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center text-gray-500 group-hover:bg-brand-blue-cyan/10 group-hover:text-brand-blue-cyan transition-colors">
-                        <i className={`fa-solid ${item.type === 'Servidor' ? 'fa-server' : item.type === 'Laptop' ? 'fa-laptop' : 'fa-desktop'}`}></i>
-                      </div>
-                      <span className="font-bold text-gray-900">{item.type}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <p className="text-gray-900 font-bold">{item.brand}</p>
-                    <p className="text-[10px] text-gray-500 font-medium uppercase">{item.model}</p>
-                  </td>
-                  <td className="px-6 py-4 hidden lg:table-cell">
-                    <div className="text-[10px] text-gray-500 space-y-0.5">
-                      {item.processor && <p><span className="font-bold text-gray-400">CPU:</span> {item.processor}</p>}
-                      {item.ram && <p><span className="font-bold text-gray-400">RAM:</span> {item.ram} | <span className="font-bold text-gray-400">SSD:</span> {item.storage}</p>}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 max-w-[120px] lg:max-w-none">
-                    <span 
-                      title={item.serialNumber}
-                      className="font-mono text-[11px] font-black text-brand-blue-dark bg-brand-blue-cyan/10 px-2 py-1 rounded-lg inline-block max-w-full truncate align-middle"
-                    >
-                      {item.serialNumber}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-tight ${getStatusStyle(item.status)}`}>
-                      {item.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 max-w-[140px] lg:max-w-none">
-                    {assignee ? (
-                      <div className="flex items-center gap-2">
-                         <div className="w-7 h-7 rounded-full bg-brand-blue-dark flex items-center justify-center text-[10px] font-black text-white shadow-sm shrink-0">
-                           {assignee.firstName.charAt(0)}
-                         </div>
-                         <div className="min-w-0 flex-1">
-                           <p className="text-xs font-bold text-gray-700 truncate" title={`${assignee.firstName} ${assignee.lastName}`}>
-                             {assignee.firstName.split(' ')[0]} {assignee.lastName.split(' ')[0]}
-                           </p>
-                         </div>
-                      </div>
-                    ) : (
-                      <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider italic">No asignado</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                <div className="flex justify-between items-start mb-4 relative z-10">
+                   <div className="w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-brand-blue-cyan group-hover:text-white transition-colors">
+                      <i className={`fa-solid ${getIconForType(item.type)} text-xl`}></i>
+                   </div>
+                   <div className="flex flex-col items-end max-w-[50%]">
+                      <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider whitespace-nowrap border mb-1 ${getStatusColor(displayStatus)}`}>
+                        {displayStatus}
+                      </span>
+                      <span className="text-[10px] font-mono text-gray-400 font-bold">{item.serialNumber}</span>
+                   </div>
+                </div>
+
+                <div className="mb-4 relative z-10">
+                   <h3 className="font-bold text-gray-900 text-lg leading-tight mb-1">{item.brand} {item.model}</h3>
+                   <p className="text-xs text-gray-500 flex items-center gap-1.5">
+                     <i className="fa-solid fa-location-dot text-gray-300"></i>
+                     {item.location}
+                   </p>
+                </div>
+
+                <div className="bg-gray-50 rounded-xl p-3 mb-4 flex items-center gap-3 border border-gray-100 relative z-10">
+                   <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs ${assignedUser ? 'bg-brand-blue-dark' : 'bg-gray-300'}`}>
+                      <i className={`fa-solid ${assignedUser ? 'fa-user' : 'fa-box'}`}></i>
+                   </div>
+                   <div className="min-w-0">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">
+                        {assignedUser ? 'Asignado a' : 'En Stock'}
+                      </p>
+                      <p className="text-sm font-bold text-gray-800 truncate">
+                        {assignedUser ? `${assignedUser.firstName} ${assignedUser.lastName}` : 'Disponible'}
+                      </p>
+                   </div>
+                </div>
+
+                {/* Action Footer */}
+                <div className="flex items-center justify-between pt-4 border-t border-gray-50 relative z-10">
+                   <button 
+                     onClick={() => handleViewDetails(item)}
+                     className="text-xs font-bold text-gray-500 hover:text-brand-blue-cyan flex items-center gap-1.5 transition-colors"
+                   >
+                     <i className="fa-solid fa-eye"></i> Detalles
+                   </button>
+
+                   <div className="flex items-center gap-1">
                       <button 
-                        onClick={() => handleOpenModal(item)}
-                        className="p-2 hover:bg-brand-blue-cyan/10 text-brand-blue-cyan rounded-xl transition-all" 
-                        title="Editar Equipo"
+                        onClick={() => handleEdit(item)}
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-brand-yellow/10 hover:text-brand-yellow transition-colors"
+                        title="Editar"
                       >
-                        <i className="fa-solid fa-pen-to-square text-sm"></i>
+                        <i className="fa-solid fa-pen"></i>
                       </button>
                       <button 
-                        onClick={() => handleOpenMaintenance(item)}
-                        className="p-2 hover:bg-brand-yellow/10 text-brand-yellow rounded-xl transition-all" 
-                        title="Enviar a Mantenimiento"
+                        onClick={() => handleReportMaintenance(item)}
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-brand-orange/10 hover:text-brand-orange transition-colors"
+                        title="Reportar Falla"
                       >
-                        <i className="fa-solid fa-screwdriver-wrench text-sm"></i>
+                        <i className="fa-solid fa-screwdriver-wrench"></i>
                       </button>
-                    </div>
-                  </td>
-                </tr>
-              )})}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* --- VISTA MÓVIL (TARJETAS) --- */}
-      <div className="md:hidden space-y-4">
-        {filteredItems.map((item) => {
-            const assignee = collaborators.find(c => c.id === item.assignedTo);
-            return (
-              <div key={item.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm relative">
-                {/* Header Tarjeta */}
-                <div className="flex justify-between items-start mb-4">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center text-gray-500">
-                            <i className={`fa-solid ${item.type === 'Servidor' ? 'fa-server' : item.type === 'Laptop' ? 'fa-laptop' : 'fa-desktop'}`}></i>
-                        </div>
-                        <div>
-                            <p className="font-black text-gray-900 leading-tight">{item.type}</p>
-                            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full inline-block mt-1 ${getStatusStyle(item.status)}`}>
-                                {item.status}
-                            </span>
-                        </div>
-                    </div>
-                    {/* Acciones Móviles */}
-                    <div className="flex gap-2">
-                        <button onClick={() => handleOpenModal(item)} className="w-8 h-8 flex items-center justify-center bg-gray-50 rounded-lg text-gray-400 hover:text-brand-blue-cyan">
-                            <i className="fa-solid fa-pen text-xs"></i>
-                        </button>
-                        <button onClick={() => handleOpenMaintenance(item)} className="w-8 h-8 flex items-center justify-center bg-gray-50 rounded-lg text-gray-400 hover:text-brand-yellow">
-                            <i className="fa-solid fa-screwdriver-wrench text-xs"></i>
-                        </button>
-                    </div>
+                      <button 
+                        onClick={() => requestDelete(item.id)}
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                        title="Eliminar"
+                      >
+                        <i className="fa-solid fa-trash-can"></i>
+                      </button>
+                   </div>
                 </div>
-
-                {/* Info Tarjeta */}
-                <div className="space-y-3 border-t border-gray-50 pt-3">
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Marca / Modelo</p>
-                            <p className="font-bold text-gray-800 text-sm break-words">{item.brand} {item.model}</p>
-                        </div>
-                        <div>
-                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Serie</p>
-                            <code className="text-xs font-bold text-brand-blue-dark bg-brand-blue-cyan/5 px-1.5 py-0.5 rounded break-all">
-                                {item.serialNumber}
-                            </code>
-                        </div>
-                    </div>
-                    
-                    {(item.processor || item.ram) && (
-                        <div className="bg-gray-50 p-2.5 rounded-xl">
-                            <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Especificaciones</p>
-                            <p className="text-xs text-gray-600 font-medium leading-relaxed">
-                                {item.processor && <span>{item.processor}</span>}
-                                {item.ram && <span> • {item.ram}</span>}
-                                {item.storage && <span> • {item.storage}</span>}
-                            </p>
-                        </div>
-                    )}
-
-                    <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Asignado a</p>
-                        {assignee ? (
-                            <div className="flex items-center gap-2">
-                                <div className="w-6 h-6 rounded-full bg-brand-blue-dark flex items-center justify-center text-[10px] font-black text-white shrink-0">
-                                    {assignee.firstName.charAt(0)}
-                                </div>
-                                <p className="text-sm font-bold text-gray-700 truncate">
-                                    {assignee.firstName} {assignee.lastName}
-                                </p>
-                            </div>
-                        ) : (
-                            <p className="text-xs text-gray-400 italic">-- En Stock --</p>
-                        )}
-                    </div>
-                </div>
-              </div>
-            );
-        })}
-      </div>
-
-      {filteredItems.length === 0 && (
-          <div className="p-20 text-center flex flex-col items-center">
-            <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
-              <i className="fa-solid fa-folder-open text-2xl text-gray-300"></i>
-            </div>
-            <p className="text-gray-400 font-bold text-sm uppercase tracking-widest">No se encontraron equipos</p>
-          </div>
-      )}
-
-      {/* MODAL DE MANTENIMIENTO */}
-      {isMaintenanceModalOpen && maintenanceItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl animate-in zoom-in-95 duration-200">
-             <div className="p-8">
-                <div className="flex justify-between items-center mb-6">
-                  <div>
-                    <h2 className="text-xl font-black text-gray-900">Reportar Falla</h2>
-                    <p className="text-sm text-gray-500">Equipo: {maintenanceItem.brand} {maintenanceItem.model}</p>
-                  </div>
-                  <button onClick={() => setIsMaintenanceModalOpen(false)} className="text-gray-400 hover:text-gray-600">
-                    <i className="fa-solid fa-times text-xl"></i>
-                  </button>
-                </div>
-
-                <form onSubmit={handleSubmitMaintenance} className="space-y-6">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Problema (Título)</label>
-                    <input 
-                      required
-                      type="text" 
-                      value={maintenanceData.title}
-                      onChange={e => setMaintenanceData({...maintenanceData, title: e.target.value})}
-                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-yellow" 
-                      placeholder="Ej: Pantalla rota, No enciende..."
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Descripción Detallada</label>
-                    <textarea 
-                      required
-                      value={maintenanceData.description}
-                      onChange={e => setMaintenanceData({...maintenanceData, description: e.target.value})}
-                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-yellow h-24 resize-none" 
-                      placeholder="Describa cómo ocurrió la falla..."
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Gravedad del Daño</label>
-                    <div className="grid grid-cols-1 gap-3">
-                      
-                      {/* Opción Moderado */}
-                      <label className={`cursor-pointer border-2 rounded-xl p-3 flex items-center gap-4 transition-all ${maintenanceData.severity === 'Moderate' ? 'border-brand-yellow bg-brand-yellow/5' : 'border-gray-100 hover:bg-gray-50'}`}>
-                         <input 
-                            type="radio" 
-                            name="severity" 
-                            value="Moderate" 
-                            checked={maintenanceData.severity === 'Moderate'}
-                            onChange={() => setMaintenanceData({...maintenanceData, severity: 'Moderate'})}
-                            className="hidden" 
-                         />
-                         <div className={`w-10 h-10 rounded-full flex items-center justify-center ${maintenanceData.severity === 'Moderate' ? 'bg-brand-yellow text-white' : 'bg-gray-200 text-gray-400'}`}>
-                            <i className="fa-solid fa-triangle-exclamation"></i>
-                         </div>
-                         <div>
-                            <p className="font-bold text-gray-900">Moderado</p>
-                            <p className="text-xs text-gray-500">Mantenimiento preventivo o fallas leves.</p>
-                         </div>
-                      </label>
-
-                      {/* Opción Severo */}
-                      <label className={`cursor-pointer border-2 rounded-xl p-3 flex items-center gap-4 transition-all ${maintenanceData.severity === 'Severe' ? 'border-red-500 bg-red-50' : 'border-gray-100 hover:bg-gray-50'}`}>
-                         <input 
-                            type="radio" 
-                            name="severity" 
-                            value="Severe" 
-                            checked={maintenanceData.severity === 'Severe'}
-                            onChange={() => setMaintenanceData({...maintenanceData, severity: 'Severe'})}
-                            className="hidden" 
-                         />
-                         <div className={`w-10 h-10 rounded-full flex items-center justify-center ${maintenanceData.severity === 'Severe' ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-400'}`}>
-                            <i className="fa-solid fa-temperature-arrow-up"></i>
-                         </div>
-                         <div>
-                            <p className="font-bold text-gray-900">Severo</p>
-                            <p className="text-xs text-gray-500">El equipo no funciona o riesgo de seguridad.</p>
-                         </div>
-                      </label>
-
-                      {/* Opción Pérdida Total */}
-                      <label className={`cursor-pointer border-2 rounded-xl p-3 flex items-center gap-4 transition-all ${maintenanceData.severity === 'TotalLoss' ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-100 hover:bg-gray-50'}`}>
-                         <input 
-                            type="radio" 
-                            name="severity" 
-                            value="TotalLoss" 
-                            checked={maintenanceData.severity === 'TotalLoss'}
-                            onChange={() => setMaintenanceData({...maintenanceData, severity: 'TotalLoss'})}
-                            className="hidden" 
-                         />
-                         <div className={`w-10 h-10 rounded-full flex items-center justify-center ${maintenanceData.severity === 'TotalLoss' ? 'bg-white text-gray-900' : 'bg-gray-200 text-gray-400'}`}>
-                            <i className="fa-solid fa-skull"></i>
-                         </div>
-                         <div>
-                            <p className={`font-bold ${maintenanceData.severity === 'TotalLoss' ? 'text-white' : 'text-gray-900'}`}>Pérdida Total</p>
-                            <p className={`text-xs ${maintenanceData.severity === 'TotalLoss' ? 'text-gray-400' : 'text-gray-500'}`}>Equipo irrecuperable. Se dará de baja.</p>
-                         </div>
-                      </label>
-
-                    </div>
-                  </div>
-
-                  <div className="pt-2 flex gap-3">
-                    <button type="button" onClick={() => setIsMaintenanceModalOpen(false)} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold rounded-xl transition-all">
-                      Cancelar
-                    </button>
-                    <button type="submit" className="flex-1 py-3 bg-brand-blue-cyan hover:bg-brand-blue-dark text-white font-bold rounded-xl shadow-lg shadow-brand-blue-cyan/20 transition-all">
-                      Enviar Reporte
-                    </button>
-                  </div>
-                </form>
              </div>
-          </div>
-        </div>
-      )}
+           );
+        })}
+        
+        {filteredEquipment.length === 0 && (
+           <div className="col-span-full py-20 bg-gray-50 border-2 border-dashed border-gray-200 rounded-3xl flex flex-col items-center justify-center text-gray-400">
+              <i className="fa-solid fa-filter-circle-xmark text-4xl mb-4 text-gray-300"></i>
+              <p className="font-medium">No se encontraron equipos</p>
+              <button onClick={() => {setFilterType('Todos'); setSearchTerm('');}} className="mt-2 text-sm text-brand-blue-cyan font-bold hover:underline">
+                 Limpiar filtros
+              </button>
+           </div>
+        )}
+      </div>
 
-      {/* MODAL DE REGISTRO / EDICION */}
-      {isModalOpen && (
+      {/* MODAL CREAR/EDITAR */}
+      {isFormOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl animate-in zoom-in-95 duration-200 my-8">
             <div className="p-8">
-              <div className="flex justify-between items-start mb-8">
-                <div>
-                  <h2 className="text-2xl font-black text-gray-900">
-                    {editingId ? 'Editar Equipo' : 'Registro de Equipo'}
-                  </h2>
-                  <p className="text-sm text-gray-500 font-medium">
-                    {editingId ? 'Actualiza la información del activo.' : `Ingresa las especificaciones técnicas del activo para ${company.name}.`}
-                  </p>
-                </div>
-                <button onClick={() => setIsModalOpen(false)} className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-black text-gray-900">
+                  {editingId ? 'Editar Equipo' : 'Nuevo Activo'}
+                </h2>
+                <button onClick={() => setIsFormOpen(false)} className="text-gray-400 hover:text-gray-600">
                   <i className="fa-solid fa-times text-xl"></i>
                 </button>
               </div>
               
-              <form className="space-y-6" onSubmit={handleSubmit}>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div>
-                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">Tipo de Equipo</label>
-                    <select 
-                      value={formData.type}
-                      onChange={(e) => setFormData({...formData, type: e.target.value})}
-                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-brand-blue-cyan/10 focus:border-brand-blue-cyan font-bold text-sm transition-all"
-                    >
-                      <option value="Laptop">Laptop</option>
-                      <option value="Desktop">Desktop</option>
-                      <option value="Servidor">Servidor</option>
-                      <option value="Tablet">Tablet</option>
-                      <option value="Smartphone">Smartphone</option>
-                      <option value="Periférico">Periférico</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">Número de Serie</label>
-                    <input 
-                      type="text" 
-                      required
-                      value={formData.serialNumber}
-                      onChange={(e) => setFormData({...formData, serialNumber: e.target.value})}
-                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-brand-blue-cyan/10 focus:border-brand-blue-cyan font-bold text-sm transition-all" 
-                      placeholder="DL-XXXXXXXX" 
-                    />
-                  </div>
-                </div>
+              <EquipmentForm 
+                initialData={editingId && selectedEquip ? selectedEquip : undefined}
+                onSubmit={handleFormSubmit}
+                onCancel={() => setIsFormOpen(false)}
+                collaborators={collaborators}
+                isEditing={!!editingId}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div>
-                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">Marca</label>
-                    <input 
-                      type="text" 
-                      required
-                      value={formData.brand}
-                      onChange={(e) => setFormData({...formData, brand: e.target.value})}
-                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-brand-blue-cyan/10 focus:border-brand-blue-cyan font-bold text-sm transition-all" 
-                      placeholder="Dell, HP, Apple..." 
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">Modelo</label>
-                    <input 
-                      type="text" 
-                      required
-                      value={formData.model}
-                      onChange={(e) => setFormData({...formData, model: e.target.value})}
-                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-brand-blue-cyan/10 focus:border-brand-blue-cyan font-bold text-sm transition-all" 
-                      placeholder="Latitude, ProLiant, etc." 
-                    />
-                  </div>
-                </div>
+      {/* MODAL DETALLES (READ ONLY) */}
+      {isDetailsOpen && selectedEquip && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4 overflow-y-auto">
+           <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl animate-in zoom-in-95 duration-200">
+              <div className="p-8">
+                 <div className="flex justify-between items-start mb-6">
+                    <div>
+                      <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">{selectedEquip.type}</p>
+                      <h2 className="text-2xl font-black text-gray-900">{selectedEquip.brand} {selectedEquip.model}</h2>
+                    </div>
+                    <button onClick={() => setIsDetailsOpen(false)} className="text-gray-400 hover:text-gray-600">
+                      <i className="fa-solid fa-times text-xl"></i>
+                    </button>
+                 </div>
 
-                <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-4">
-                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2 mb-4">
-                    <i className="fa-solid fa-microchip text-brand-blue-cyan"></i>
-                    Características Técnicas
-                  </h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[9px] font-black text-slate-400 uppercase mb-1.5">Procesador</label>
-                      <input 
-                        type="text" 
-                        value={formData.processor}
-                        onChange={(e) => setFormData({...formData, processor: e.target.value})}
-                        className="w-full p-2.5 bg-white border border-slate-200 rounded-lg outline-none text-xs font-bold" 
-                        placeholder="i7-12700H" 
-                      />
+                 <div className="space-y-6">
+                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex justify-between items-center">
+                       <div>
+                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Serial</p>
+                          <p className="font-mono font-bold text-gray-800">{selectedEquip.serialNumber}</p>
+                       </div>
+                       <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${getStatusColor(selectedEquip.status)}`}>
+                          {selectedEquip.status}
+                       </div>
                     </div>
-                    <div>
-                      <label className="block text-[9px] font-black text-slate-400 uppercase mb-1.5">Memoria RAM</label>
-                      <input 
-                        type="text" 
-                        value={formData.ram}
-                        onChange={(e) => setFormData({...formData, ram: e.target.value})}
-                        className="w-full p-2.5 bg-white border border-slate-200 rounded-lg outline-none text-xs font-bold" 
-                        placeholder="16GB DDR5" 
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[9px] font-black text-slate-400 uppercase mb-1.5">Almacenamiento</label>
-                      <input 
-                        type="text" 
-                        value={formData.storage}
-                        onChange={(e) => setFormData({...formData, storage: e.target.value})}
-                        className="w-full p-2.5 bg-white border border-slate-200 rounded-lg outline-none text-xs font-bold" 
-                        placeholder="1TB NVMe" 
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[9px] font-black text-slate-400 uppercase mb-1.5">Sist. Operativo</label>
-                      <input 
-                        type="text" 
-                        value={formData.os}
-                        onChange={(e) => setFormData({...formData, os: e.target.value})}
-                        className="w-full p-2.5 bg-white border border-slate-200 rounded-lg outline-none text-xs font-bold" 
-                        placeholder="Windows 11 Pro" 
-                      />
-                    </div>
-                  </div>
-                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div>
-                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">Estado</label>
-                    <select 
-                      value={formData.status}
-                      onChange={(e) => setFormData({...formData, status: e.target.value as EquipmentStatus})}
-                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-brand-blue-cyan/10 focus:border-brand-blue-cyan font-bold text-sm transition-all"
-                    >
-                      <option value={EquipmentStatus.ACTIVE}>{EquipmentStatus.ACTIVE}</option>
-                      <option value={EquipmentStatus.MAINTENANCE}>{EquipmentStatus.MAINTENANCE}</option>
-                      <option value={EquipmentStatus.RETIRED}>{EquipmentStatus.RETIRED}</option>
-                      <option value={EquipmentStatus.LOST}>{EquipmentStatus.LOST}</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">Asignar a Colaborador</label>
-                    <select 
-                      value={formData.assignedTo || ''}
-                      onChange={(e) => setFormData({...formData, assignedTo: e.target.value ? Number(e.target.value) : undefined})}
-                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-brand-blue-cyan/10 focus:border-brand-blue-cyan font-bold text-sm transition-all"
-                    >
-                      <option value="">-- Sin Asignar (Equipo en Stock) --</option>
-                      {collaborators.map(c => (
-                        <option key={c.id} value={c.id}>{c.firstName} {c.lastName} | {c.cargo}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
+                    <div className="grid grid-cols-2 gap-4">
+                       <div>
+                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Ubicación</p>
+                          <p className="font-bold text-gray-700 text-sm">{selectedEquip.location}</p>
+                       </div>
+                       <div>
+                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Fecha Compra</p>
+                          <p className="font-bold text-gray-700 text-sm">{selectedEquip.purchaseDate || 'N/A'}</p>
+                       </div>
+                    </div>
 
-                <div className="pt-4 flex gap-4">
-                  <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-600 font-black text-xs uppercase tracking-widest rounded-xl transition-all">
-                    Cancelar
-                  </button>
-                  <button type="submit" className="flex-1 py-3.5 bg-brand-blue-cyan hover:bg-brand-blue-dark text-white font-black text-xs uppercase tracking-widest rounded-xl shadow-lg shadow-brand-blue-cyan/20 transition-all">
-                    {editingId ? 'Guardar Cambios' : 'Registrar Activo'}
-                  </button>
-                </div>
-              </form>
+                    {(selectedEquip.processor || selectedEquip.ram || selectedEquip.storage) && (
+                      <div className="border-t border-gray-100 pt-4">
+                        <p className="text-[10px] font-black text-brand-blue-cyan uppercase tracking-widest mb-3">Especificaciones</p>
+                        <div className="grid grid-cols-2 gap-y-3 gap-x-6">
+                           {selectedEquip.processor && (
+                             <div><span className="text-xs text-gray-400 block">Procesador</span><span className="text-sm font-bold text-gray-800">{selectedEquip.processor}</span></div>
+                           )}
+                           {selectedEquip.ram && (
+                             <div><span className="text-xs text-gray-400 block">RAM</span><span className="text-sm font-bold text-gray-800">{selectedEquip.ram}</span></div>
+                           )}
+                           {selectedEquip.storage && (
+                             <div><span className="text-xs text-gray-400 block">Almacenamiento</span><span className="text-sm font-bold text-gray-800">{selectedEquip.storage}</span></div>
+                           )}
+                           {selectedEquip.os && (
+                             <div><span className="text-xs text-gray-400 block">Sistema Op.</span><span className="text-sm font-bold text-gray-800">{selectedEquip.os}</span></div>
+                           )}
+                        </div>
+                      </div>
+                    )}
+                 </div>
+
+                 <button onClick={() => setIsDetailsOpen(false)} className="w-full mt-8 py-3 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold rounded-xl transition-all">
+                    Cerrar Ficha
+                 </button>
+              </div>
+           </div>
+        </div>
+      )}
+
+      {/* MODAL REPORTE MANTENIMIENTO */}
+      {isMaintenanceOpen && selectedEquip && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4">
+           <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl animate-in zoom-in-95 duration-200">
+              <div className="p-8">
+                 <h2 className="text-xl font-black text-gray-900 mb-2">Reportar Falla o Avería</h2>
+                 <p className="text-sm text-gray-500 mb-6">
+                   Equipo: <span className="font-bold text-gray-800">{selectedEquip.brand} {selectedEquip.model}</span> ({selectedEquip.serialNumber})
+                 </p>
+                 
+                 <MaintenanceReportForm 
+                   onSubmit={handleMaintenanceSubmit}
+                   onCancel={() => setIsMaintenanceOpen(false)}
+                 />
+              </div>
+           </div>
+        </div>
+      )}
+
+      {/* MODAL CONFIRMACION ELIMINAR */}
+      {deleteConfirm.isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center transform transition-all scale-100">
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500 text-2xl">
+              <i className="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">¿Eliminar Equipo?</h3>
+            <p className="text-sm text-gray-500 mb-6">
+              Esta acción es irreversible. Se eliminará también el historial de mantenimiento asociado.
+            </p>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setDeleteConfirm({ isOpen: false, id: null })}
+                className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={confirmDelete}
+                className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-lg shadow-red-500/30 transition-colors"
+              >
+                Sí, Eliminar
+              </button>
             </div>
           </div>
         </div>

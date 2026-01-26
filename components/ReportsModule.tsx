@@ -145,14 +145,15 @@ const ReportsModule: React.FC<ReportsModuleProps> = ({ company }) => {
 
       return {
         'ID Ticket': item.id,
-        'Fecha': item.date,
+        'Fecha Reporte': item.date,
         'Incidencia': item.title,
-        'Descripción Detallada': item.description,
+        'Descripción Falla': item.description,
         'Equipo Afectado': equipName,
         'Serie Equipo': equipSerial,
         'Severidad': item.severity === 'TotalLoss' ? 'Pérdida Total' : item.severity === 'Severe' ? 'Severa' : 'Moderada',
         'Estado': item.status === 'Open' ? 'Abierto' : 'Cerrado',
-        'Técnico': item.technician || 'Pendiente'
+        'Solución Técnica': item.resolutionDetails || 'Pendiente',
+        'Fecha Solución': item.resolutionDate || '-'
       };
     });
 
@@ -274,7 +275,7 @@ const ReportsModule: React.FC<ReportsModuleProps> = ({ company }) => {
                  <i className="fa-solid fa-table text-2xl"></i>
               </div>
               <h3 className="text-lg font-bold text-gray-900">Vista Previa de Datos</h3>
-              <p className="text-gray-500 max-w-md mx-auto mb-6">La tabla contiene {maintenance.length} registros listos para exportar con formato corporativo.</p>
+              <p className="text-gray-500 max-w-md mx-auto mb-6">La tabla contiene {maintenance.length} registros listos para exportar con formato corporativo (incluye historial de soluciones).</p>
               <button onClick={exportMaintenance} className="text-brand-blue-cyan font-bold hover:underline">Descargar ahora</button>
            </div>
         </div>
