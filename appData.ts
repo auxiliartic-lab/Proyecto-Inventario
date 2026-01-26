@@ -50,5 +50,6 @@ export const NAVIGATION_ITEMS = [
   { id: 'collaborators', label: 'Colaboradores', icon: 'fa-users' },
   { id: 'licenses', label: 'Licencias', icon: 'fa-certificate' },
   { id: 'maintenance', label: 'Mantenimientos', icon: 'fa-screwdriver-wrench' },
+  { id: 'reports', label: 'Reportes', icon: 'fa-file-csv' },
   { id: 'credentials', label: 'Credenciales', icon: 'fa-key' }
 ];

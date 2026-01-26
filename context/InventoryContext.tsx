@@ -14,11 +14,13 @@ interface InventoryContextType {
 
   // Collaborator Actions
   addCollaborator: (data: Omit<Collaborator, 'id'>) => void;
+  updateCollaborator: (data: Collaborator) => void;
   deleteCollaborator: (id: number) => void;
   toggleCollaboratorStatus: (id: number) => void;
 
   // License Actions
   addLicense: (data: Omit<SoftwareLicense, 'id'>) => void;
+  updateLicense: (data: SoftwareLicense) => void;
   deleteLicense: (id: number) => void;
 
   // Maintenance Actions
@@ -80,6 +82,12 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
   };
 
+  const updateCollaborator = (collabData: Collaborator) => {
+    if (!data) return;
+    const updatedList = data.collaborators.map(c => c.id === collabData.id ? collabData : c);
+    updateState({ ...data, collaborators: updatedList });
+  };
+
   const deleteCollaborator = (id: number) => {
     if (!data) return;
     updateState({
@@ -104,6 +112,12 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       ...data,
       licenses: [...data.licenses, newLicense]
     });
+  };
+
+  const updateLicense = (licenseData: SoftwareLicense) => {
+    if (!data) return;
+    const updatedList = data.licenses.map(l => l.id === licenseData.id ? licenseData : l);
+    updateState({ ...data, licenses: updatedList });
   };
 
   const deleteLicense = (id: number) => {
@@ -154,9 +168,11 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       updateEquipment,
       deleteEquipment,
       addCollaborator,
+      updateCollaborator,
       deleteCollaborator,
       toggleCollaboratorStatus,
       addLicense,
+      updateLicense,
       deleteLicense,
       addMaintenanceRecord,
       factoryReset

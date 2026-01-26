@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Company, Collaborator } from '../types';
 import { useInventory } from '../context/InventoryContext';
 
@@ -29,12 +29,33 @@ const JOB_TITLES = [
 ];
 
 const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
-  const { data, addCollaborator, deleteCollaborator, toggleCollaboratorStatus } = useInventory();
+  const { data, addCollaborator, updateCollaborator, deleteCollaborator, toggleCollaboratorStatus } = useInventory();
+  
+  // Estados para modales y menús
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [viewModalOpen, setViewModalOpen] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+  
+  // Estado para datos
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [selectedCollaborator, setSelectedCollaborator] = useState<Collaborator | null>(null);
   
   const collaborators = data.collaborators.filter(c => c.companyId === company.id);
 
-  const [formData, setFormData] = useState<Partial<Collaborator>>({
+  // Referencia para cerrar menús al hacer clic fuera
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setOpenMenuId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const initialFormData: Partial<Collaborator> = {
     firstName: '',
     lastName: '',
     email: '',
@@ -42,27 +63,62 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
     area: '',
     sex: 'Male',
     isActive: true
-  });
+  };
+
+  const [formData, setFormData] = useState<Partial<Collaborator>>(initialFormData);
+
+  // Manejadores de Acción
+  const handleOpenCreate = () => {
+    setEditingId(null);
+    setFormData(initialFormData);
+    setIsModalOpen(true);
+  };
+
+  const handleEdit = (collab: Collaborator) => {
+    setEditingId(collab.id);
+    setFormData({ ...collab });
+    setIsModalOpen(true);
+    setOpenMenuId(null);
+  };
+
+  const handleViewDetails = (collab: Collaborator) => {
+    setSelectedCollaborator(collab);
+    setViewModalOpen(true);
+    setOpenMenuId(null);
+  };
 
   const handleToggleStatus = (id: number) => {
     toggleCollaboratorStatus(id);
+    setOpenMenuId(null);
   };
 
   const handleDelete = (id: number) => {
     if (window.confirm('¿Estás seguro de eliminar a este colaborador? Se perderá el historial de asignaciones.')) {
       deleteCollaborator(id);
     }
+    setOpenMenuId(null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    addCollaborator({
-      ...formData as Omit<Collaborator, 'id'>,
-      companyId: company.id,
-      siteId: 1
-    });
+    if (editingId) {
+      // Actualizar
+      updateCollaborator({
+        ...formData as Collaborator,
+        id: editingId,
+        companyId: company.id
+      });
+    } else {
+      // Crear
+      addCollaborator({
+        ...formData as Omit<Collaborator, 'id'>,
+        companyId: company.id,
+        siteId: 1
+      });
+    }
     setIsModalOpen(false);
-    setFormData({ firstName: '', lastName: '', email: '', cargo: '', area: '', sex: 'Male', isActive: true });
+    setFormData(initialFormData);
+    setEditingId(null);
   };
 
   return (
@@ -73,7 +129,7 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
           <p className="text-gray-500">Administra los colaboradores responsables de activos en {company.name}</p>
         </div>
         <button 
-          onClick={() => setIsModalOpen(true)}
+          onClick={handleOpenCreate}
           className="w-full md:w-auto bg-brand-blue-cyan text-white px-5 py-2.5 rounded-xl font-bold hover:bg-brand-blue-dark transition-all shadow-lg shadow-brand-blue-cyan/10 flex items-center justify-center gap-2"
         >
           <i className="fa-solid fa-user-plus"></i>
@@ -83,7 +139,7 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {collaborators.map((c) => (
-          <div key={c.id} className={`bg-white p-6 rounded-2xl border ${c.isActive ? 'border-gray-100 shadow-sm' : 'border-gray-200 bg-gray-50/50 opacity-75'} flex gap-5 items-start transition-all group overflow-hidden`}>
+          <div key={c.id} className={`bg-white p-6 rounded-2xl border ${c.isActive ? 'border-gray-100 shadow-sm' : 'border-gray-200 bg-gray-50/50 opacity-75'} flex gap-5 items-start transition-all group overflow-visible relative`}>
              <div className="relative shrink-0">
                 <img 
                   src={c.sex === 'Female' ? AVATAR_FEMALE : AVATAR_MALE} 
@@ -102,12 +158,11 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
                 <div className="mt-4 flex flex-col gap-1">
                    <div className="flex items-center gap-2 text-xs text-gray-600">
                       <i className="fa-solid fa-envelope w-4"></i>
-                      {/* break-all: fuerza el salto de línea en correos largos en móvil */}
                       <span className="break-all">{c.email}</span>
                    </div>
                 </div>
 
-                <div className="mt-5 pt-4 border-t border-gray-50 flex items-center justify-between">
+                <div className="mt-5 pt-4 border-t border-gray-50 flex items-center justify-between relative">
                    <div className="flex gap-2">
                       <button 
                         onClick={() => handleToggleStatus(c.id)}
@@ -122,9 +177,49 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
                         Eliminar
                       </button>
                    </div>
-                   <button className="text-gray-400 hover:text-brand-blue-cyan transition-colors">
-                      <i className="fa-solid fa-ellipsis-vertical"></i>
-                   </button>
+                   
+                   {/* Botón de Menú (Tres puntos) */}
+                   <div className="relative">
+                     <button 
+                       onClick={() => setOpenMenuId(openMenuId === c.id ? null : c.id)}
+                       className="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-brand-blue-cyan hover:bg-brand-blue-cyan/10 transition-colors"
+                     >
+                        <i className="fa-solid fa-ellipsis-vertical"></i>
+                     </button>
+
+                     {/* Dropdown Menu */}
+                     {openMenuId === c.id && (
+                       <div 
+                         ref={menuRef}
+                         className="absolute right-0 bottom-full mb-2 w-48 bg-white rounded-xl shadow-xl z-20 border border-gray-100 animate-in fade-in zoom-in-95 duration-100 overflow-hidden"
+                       >
+                         <div className="py-1">
+                           <button 
+                             onClick={() => handleViewDetails(c)}
+                             className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-brand-blue-cyan font-medium flex items-center gap-2 transition-colors"
+                           >
+                             <i className="fa-solid fa-eye text-xs w-5 text-center"></i>
+                             Ver Detalles
+                           </button>
+                           <button 
+                             onClick={() => handleEdit(c)}
+                             className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-brand-yellow font-medium flex items-center gap-2 transition-colors"
+                           >
+                             <i className="fa-solid fa-pen text-xs w-5 text-center"></i>
+                             Editar Datos
+                           </button>
+                           <div className="border-t border-gray-100 my-1"></div>
+                           <button 
+                             onClick={() => handleDelete(c.id)}
+                             className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 font-medium flex items-center gap-2 transition-colors"
+                           >
+                             <i className="fa-solid fa-trash-can text-xs w-5 text-center"></i>
+                             Eliminar
+                           </button>
+                         </div>
+                       </div>
+                     )}
+                   </div>
                 </div>
              </div>
           </div>
@@ -134,18 +229,20 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
           <div className="col-span-full py-16 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-400">
              <i className="fa-solid fa-users-slash text-5xl mb-4"></i>
              <p className="font-bold">No hay colaboradores registrados</p>
-             <button onClick={() => setIsModalOpen(true)} className="mt-4 text-brand-blue-cyan font-bold hover:underline">Registrar el primero</button>
+             <button onClick={handleOpenCreate} className="mt-4 text-brand-blue-cyan font-bold hover:underline">Registrar el primero</button>
           </div>
         )}
       </div>
 
-      {/* MODAL NUEVO COLABORADOR */}
+      {/* MODAL CREAR / EDITAR */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4">
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="p-8">
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">Nuevo Colaborador</h2>
+                <h2 className="text-2xl font-bold text-gray-900">
+                  {editingId ? 'Editar Colaborador' : 'Nuevo Colaborador'}
+                </h2>
                 <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600">
                   <i className="fa-solid fa-times text-xl"></i>
                 </button>
@@ -237,10 +334,71 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
                     Cancelar
                   </button>
                   <button type="submit" className="flex-1 py-3 bg-brand-blue-cyan hover:bg-brand-blue-dark text-white font-bold rounded-xl shadow-lg shadow-brand-blue-cyan/20 transition-all">
-                    Crear Registro
+                    {editingId ? 'Guardar Cambios' : 'Crear Registro'}
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL VER DETALLES */}
+      {viewModalOpen && selectedCollaborator && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200 relative overflow-hidden">
+            {/* Header decorativo */}
+            <div className="h-24 bg-gradient-to-r from-brand-blue-cyan to-brand-blue-dark"></div>
+            
+            <div className="px-8 pb-8 -mt-12 relative">
+               <div className="flex justify-center mb-4">
+                  <img 
+                    src={selectedCollaborator.sex === 'Female' ? AVATAR_FEMALE : AVATAR_MALE} 
+                    className="w-24 h-24 rounded-full border-4 border-white shadow-md bg-white" 
+                    alt="Avatar" 
+                  />
+               </div>
+
+               <div className="text-center mb-6">
+                  <h2 className="text-2xl font-black text-gray-900 leading-tight">
+                    {selectedCollaborator.firstName} {selectedCollaborator.lastName}
+                  </h2>
+                  <p className="text-brand-blue-dark font-bold">{selectedCollaborator.cargo}</p>
+                  <div className="flex items-center justify-center gap-2 mt-2">
+                     <span className={`w-2.5 h-2.5 rounded-full ${selectedCollaborator.isActive ? 'bg-brand-green-dark' : 'bg-gray-400'}`}></span>
+                     <span className="text-xs text-gray-500 uppercase tracking-widest font-bold">
+                       {selectedCollaborator.isActive ? 'Activo' : 'Inactivo'}
+                     </span>
+                  </div>
+               </div>
+
+               <div className="space-y-4 bg-gray-50 rounded-2xl p-5 border border-gray-100">
+                  <div className="flex items-center gap-3">
+                     <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-brand-blue-cyan shadow-sm">
+                       <i className="fa-solid fa-envelope text-xs"></i>
+                     </div>
+                     <div className="min-w-0">
+                        <p className="text-[10px] text-gray-400 font-bold uppercase">Correo</p>
+                        <p className="text-sm font-semibold text-gray-700 truncate">{selectedCollaborator.email}</p>
+                     </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                     <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-brand-orange shadow-sm">
+                       <i className="fa-solid fa-briefcase text-xs"></i>
+                     </div>
+                     <div>
+                        <p className="text-[10px] text-gray-400 font-bold uppercase">Departamento</p>
+                        <p className="text-sm font-semibold text-gray-700">{selectedCollaborator.area}</p>
+                     </div>
+                  </div>
+               </div>
+
+               <button 
+                 onClick={() => setViewModalOpen(false)}
+                 className="w-full mt-6 py-3 bg-gray-900 hover:bg-black text-white font-bold rounded-xl transition-all"
+               >
+                 Cerrar Tarjeta
+               </button>
             </div>
           </div>
         </div>

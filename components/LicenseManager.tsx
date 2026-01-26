@@ -10,10 +10,13 @@ interface LicenseManagerProps {
 type LicenseStatus = 'Active' | 'Warning' | 'Critical';
 
 const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
-  const { data, addLicense, deleteLicense } = useInventory();
+  const { data, addLicense, updateLicense, deleteLicense } = useInventory();
   const [isModalOpen, setIsModalOpen] = useState(false);
   
-  // Nuevo estado para el modal de detalles
+  // Estado para edición
+  const [editingId, setEditingId] = useState<number | null>(null);
+
+  // Estado para el modal de detalles
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [selectedLicense, setSelectedLicense] = useState<SoftwareLicense | null>(null);
 
@@ -21,14 +24,16 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
   
   const licenses = data.licenses.filter(l => l.companyId === company.id);
 
-  const [formData, setFormData] = useState<Partial<SoftwareLicense>>({
+  const initialFormData: Partial<SoftwareLicense> = {
     name: '',
     vendor: '',
     key: '',
     type: 'Suscripción',
     startDate: '',
     expirationDate: ''
-  });
+  };
+
+  const [formData, setFormData] = useState<Partial<SoftwareLicense>>(initialFormData);
 
   // Lógica del Semáforo
   const calculateStatus = (expirationDate: string): LicenseStatus => {
@@ -53,21 +58,45 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
     }
   };
 
+  const handleOpenCreate = () => {
+    setEditingId(null);
+    setFormData(initialFormData);
+    setIsModalOpen(true);
+  };
+
+  const handleEdit = (license: SoftwareLicense) => {
+    setEditingId(license.id);
+    setFormData({ ...license });
+    setIsModalOpen(true);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.name && formData.expirationDate && formData.vendor) {
-      addLicense({
-        companyId: company.id,
-        name: formData.name,
-        vendor: formData.vendor,
-        key: formData.key || 'N/A',
-        type: formData.type || 'Suscripción',
-        startDate: formData.startDate || new Date().toISOString().split('T')[0],
-        expirationDate: formData.expirationDate
-      } as Omit<SoftwareLicense, 'id'>);
+      
+      if (editingId) {
+        // Actualizar
+        updateLicense({
+          ...formData as SoftwareLicense,
+          id: editingId,
+          companyId: company.id
+        });
+      } else {
+        // Crear
+        addLicense({
+          companyId: company.id,
+          name: formData.name,
+          vendor: formData.vendor,
+          key: formData.key || 'N/A',
+          type: formData.type || 'Suscripción',
+          startDate: formData.startDate || new Date().toISOString().split('T')[0],
+          expirationDate: formData.expirationDate
+        } as Omit<SoftwareLicense, 'id'>);
+      }
       
       setIsModalOpen(false);
-      setFormData({ name: '', vendor: '', key: '', type: 'Suscripción', startDate: '', expirationDate: '' });
+      setFormData(initialFormData);
+      setEditingId(null);
     }
   };
 
@@ -112,7 +141,7 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
               </button>
            </div>
            <button 
-             onClick={() => setIsModalOpen(true)}
+             onClick={handleOpenCreate}
              className="w-full md:w-auto bg-brand-blue-cyan text-white px-5 py-2.5 rounded-xl font-bold hover:bg-brand-blue-dark transition-all shadow-lg shadow-brand-blue-cyan/10 flex items-center justify-center gap-2 shrink-0"
            >
              <i className="fa-solid fa-plus"></i>
@@ -176,6 +205,13 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
                             <i className="fa-solid fa-eye"></i>
                          </button>
                          <button 
+                            onClick={() => handleEdit(license)} 
+                            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-yellow hover:bg-brand-yellow/10 transition-colors" 
+                            title="Editar"
+                         >
+                            <i className="fa-solid fa-pen"></i>
+                         </button>
+                         <button 
                             onClick={() => handleDelete(license.id)} 
                             className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors" 
                             title="Eliminar"
@@ -208,6 +244,9 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
                     <div className="flex gap-1">
                       <button onClick={() => handleViewDetails(license)} className="text-gray-300 hover:text-brand-blue-cyan p-2 rounded-lg hover:bg-gray-50 transition-colors">
                         <i className="fa-solid fa-eye"></i>
+                      </button>
+                      <button onClick={() => handleEdit(license)} className="text-gray-300 hover:text-brand-yellow p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                        <i className="fa-solid fa-pen"></i>
                       </button>
                       <button onClick={() => handleDelete(license.id)} className="text-gray-300 hover:text-red-500 p-2 rounded-lg hover:bg-gray-50 transition-colors">
                         <i className="fa-solid fa-trash-can"></i>
@@ -337,13 +376,15 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
         </div>
       )}
 
-      {/* MODAL NUEVA LICENCIA */}
+      {/* MODAL NUEVA / EDITAR LICENCIA */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4">
           <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="p-8">
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-black text-gray-900">Registrar Licencia</h2>
+                <h2 className="text-xl font-black text-gray-900">
+                  {editingId ? 'Editar Licencia' : 'Registrar Licencia'}
+                </h2>
                 <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600">
                   <i className="fa-solid fa-times text-xl"></i>
                 </button>
@@ -428,7 +469,7 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
                     Cancelar
                   </button>
                   <button type="submit" className="flex-1 py-3 bg-brand-blue-cyan hover:bg-brand-blue-dark text-white font-bold rounded-xl shadow-lg shadow-brand-blue-cyan/20 transition-all">
-                    Guardar
+                    {editingId ? 'Guardar Cambios' : 'Registrar'}
                   </button>
                 </div>
               </form>

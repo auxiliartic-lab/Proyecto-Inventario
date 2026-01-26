@@ -9,6 +9,7 @@ interface CredentialVaultProps {
 const CredentialVault: React.FC<CredentialVaultProps> = ({ company }) => {
   const [showPassword, setShowPassword] = useState<Record<number, boolean>>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   // Estado local para las credenciales (Simulación de base de datos)
   const [credentials, setCredentials] = useState<Credential[]>([
@@ -17,12 +18,14 @@ const CredentialVault: React.FC<CredentialVaultProps> = ({ company }) => {
     { id: 3, companyId: company.id, service: 'Router Principal', username: 'root', password: 'RouterPass99', description: 'Acceso físico al rack' }
   ]);
 
-  const [formData, setFormData] = useState<Partial<Credential>>({
+  const initialFormData: Partial<Credential> = {
     service: '',
     username: '',
     password: '',
     description: ''
-  });
+  };
+
+  const [formData, setFormData] = useState<Partial<Credential>>(initialFormData);
 
   const toggleVisibility = (id: number) => {
     setShowPassword(prev => ({ ...prev, [id]: !prev[id] }));
@@ -34,22 +37,52 @@ const CredentialVault: React.FC<CredentialVaultProps> = ({ company }) => {
     }
   };
 
+  const handleOpenCreate = () => {
+    setEditingId(null);
+    setFormData(initialFormData);
+    setIsModalOpen(true);
+  };
+
+  const handleEdit = (cred: Credential) => {
+    setEditingId(cred.id);
+    setFormData({
+      service: cred.service,
+      username: cred.username,
+      password: cred.password || '',
+      description: cred.description
+    });
+    setIsModalOpen(true);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.service || !formData.username || !formData.password) return;
 
-    const newCredential: Credential = {
-      id: Date.now(), // ID temporal único
-      companyId: company.id,
-      service: formData.service,
-      username: formData.username,
-      password: formData.password,
-      description: formData.description || ''
-    };
+    if (editingId) {
+      // Actualizar existente
+      setCredentials(prev => prev.map(c => c.id === editingId ? {
+        ...c,
+        service: formData.service!,
+        username: formData.username!,
+        password: formData.password!,
+        description: formData.description || ''
+      } : c));
+    } else {
+      // Crear nueva
+      const newCredential: Credential = {
+        id: Date.now(), // ID temporal único
+        companyId: company.id,
+        service: formData.service,
+        username: formData.username,
+        password: formData.password,
+        description: formData.description || ''
+      };
+      setCredentials([...credentials, newCredential]);
+    }
 
-    setCredentials([...credentials, newCredential]);
     setIsModalOpen(false);
-    setFormData({ service: '', username: '', password: '', description: '' });
+    setFormData(initialFormData);
+    setEditingId(null);
   };
 
   return (
@@ -71,7 +104,7 @@ const CredentialVault: React.FC<CredentialVaultProps> = ({ company }) => {
              <p className="text-xs text-gray-400">Total guardado: {credentials.length}</p>
            </div>
            <button 
-             onClick={() => setIsModalOpen(true)}
+             onClick={handleOpenCreate}
              className="w-full sm:w-auto bg-gray-900 hover:bg-black text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-gray-900/20"
            >
               <i className="fa-solid fa-key"></i>
@@ -109,9 +142,20 @@ const CredentialVault: React.FC<CredentialVaultProps> = ({ company }) => {
                         <i className={`fa-solid ${showPassword[cred.id] ? 'fa-eye-slash' : 'fa-eye'}`}></i>
                       </button>
                   </div>
+                  
+                  {/* Botón Editar */}
+                  <button 
+                    onClick={() => handleEdit(cred)}
+                    className="w-10 h-10 flex items-center justify-center rounded-xl text-gray-300 hover:bg-brand-yellow/10 hover:text-brand-yellow transition-all"
+                    title="Editar Credencial"
+                  >
+                    <i className="fa-solid fa-pen"></i>
+                  </button>
+
                   <button 
                     onClick={() => handleDelete(cred.id)}
                     className="w-10 h-10 flex items-center justify-center rounded-xl text-gray-300 hover:bg-red-50 hover:text-red-500 transition-all"
+                    title="Eliminar Credencial"
                   >
                     <i className="fa-solid fa-trash-can"></i>
                   </button>
@@ -128,13 +172,15 @@ const CredentialVault: React.FC<CredentialVaultProps> = ({ company }) => {
         </div>
       </div>
 
-      {/* MODAL NUEVA CREDENCIAL */}
+      {/* MODAL NUEVA / EDITAR CREDENCIAL */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4">
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="p-8">
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-black text-gray-900">Guardar Credencial</h2>
+                <h2 className="text-xl font-black text-gray-900">
+                  {editingId ? 'Editar Credencial' : 'Guardar Credencial'}
+                </h2>
                 <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600">
                   <i className="fa-solid fa-times text-xl"></i>
                 </button>
@@ -198,7 +244,7 @@ const CredentialVault: React.FC<CredentialVaultProps> = ({ company }) => {
                     Cancelar
                   </button>
                   <button type="submit" className="flex-1 py-3 bg-gray-900 hover:bg-black text-white font-bold rounded-xl shadow-lg shadow-gray-900/20 transition-all">
-                    Guardar Seguro
+                    {editingId ? 'Actualizar' : 'Guardar Seguro'}
                   </button>
                 </div>
               </form>
