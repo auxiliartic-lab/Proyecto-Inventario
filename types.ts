@@ -1,3 +1,5 @@
+import 'react';
+
 export enum UserRole {
   ADMIN = 'Administrador',
   TECHNICIAN = 'Técnico',

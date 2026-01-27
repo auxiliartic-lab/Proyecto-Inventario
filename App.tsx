@@ -89,7 +89,7 @@ const App = () => {
     switch (activeTab) {
       case 'dashboard': return <Dashboard company={selectedCompany} />;
       case 'equipment': return <EquipmentList company={selectedCompany} role={userRole} />;
-      case 'collaborators': return <CollaboratorList company={selectedCompany} />;
+      case 'collaborators': return <CollaboratorList company={selectedCompany} onNavigate={setActiveTab} />;
       case 'licenses': return <LicenseManager company={selectedCompany} />;
       case 'maintenance': return <MaintenanceManager company={selectedCompany} />;
       case 'credentials': return <CredentialVault company={selectedCompany} />;

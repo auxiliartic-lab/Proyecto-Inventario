@@ -4,6 +4,7 @@ import { useInventory } from '../context/InventoryContext';
 
 interface CollaboratorListProps {
   company: Company;
+  onNavigate: (tab: string) => void;
 }
 
 // AVATARES LOCALES (SVG Base64) - Corregidos para asegurar visualización
@@ -28,7 +29,7 @@ const JOB_TITLES = [
   { label: 'Planeador de Mantenimiento', value: 'Planeador de Mantenimiento' }
 ];
 
-const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
+const CollaboratorList: React.FC<CollaboratorListProps> = ({ company, onNavigate }) => {
   const { data, addCollaborator, updateCollaborator, deleteCollaborator, toggleCollaboratorStatus } = useInventory();
   
   // Estados para modales y menús
@@ -556,10 +557,20 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
                                         <p className="font-bold text-gray-900 text-sm">{asset.brand} {asset.model}</p>
                                         <p className="text-xs text-gray-500 font-mono mt-0.5">SN: {asset.serialNumber}</p>
                                     </div>
-                                    <div className="text-right">
+                                    <div className="text-right flex flex-col items-end gap-2">
                                         <span className={`px-2 py-1 text-[10px] font-black uppercase rounded-lg ${isMaintenance ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>
                                             {isMaintenance ? 'Mantenimiento' : 'Asignado'}
                                         </span>
+                                        <button 
+                                          onClick={() => {
+                                            setViewModalOpen(false);
+                                            onNavigate('equipment');
+                                          }}
+                                          className="text-gray-400 hover:text-brand-blue-cyan transition-colors"
+                                          title="Ir al módulo de Equipos"
+                                        >
+                                          <i className="fa-solid fa-arrow-up-right-from-square"></i>
+                                        </button>
                                     </div>
                                 </div>
                             );
@@ -587,8 +598,18 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
                                     <p className="font-bold text-gray-900 text-sm">{license.name}</p>
                                     <p className="text-xs text-gray-500 mt-0.5">Expira: {license.expirationDate}</p>
                                 </div>
-                                <div className="text-right">
+                                <div className="text-right flex flex-col items-end gap-2">
                                     <span className="px-2 py-1 bg-yellow-100 text-yellow-700 text-[10px] font-black uppercase rounded-lg">Activa</span>
+                                    <button 
+                                      onClick={() => {
+                                        setViewModalOpen(false);
+                                        onNavigate('licenses');
+                                      }}
+                                      className="text-gray-400 hover:text-brand-yellow transition-colors"
+                                      title="Ir al módulo de Licencias"
+                                    >
+                                      <i className="fa-solid fa-arrow-up-right-from-square"></i>
+                                    </button>
                                 </div>
                             </div>
                         ))}
@@ -615,10 +636,20 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
                                     <p className="font-bold text-gray-900 text-sm">{cred.service}</p>
                                     <p className="text-xs text-gray-500 font-mono mt-0.5">User: {cred.username}</p>
                                 </div>
-                                <div className="text-right">
+                                <div className="text-right flex flex-col items-end gap-2">
                                     <div className="w-8 h-8 flex items-center justify-center bg-gray-100 rounded-lg text-gray-400">
                                         <i className="fa-solid fa-lock"></i>
                                     </div>
+                                    <button 
+                                      onClick={() => {
+                                        setViewModalOpen(false);
+                                        onNavigate('credentials');
+                                      }}
+                                      className="text-gray-400 hover:text-brand-blue-dark transition-colors"
+                                      title="Ir al módulo de Credenciales"
+                                    >
+                                      <i className="fa-solid fa-arrow-up-right-from-square"></i>
+                                    </button>
                                 </div>
                             </div>
                         ))}
