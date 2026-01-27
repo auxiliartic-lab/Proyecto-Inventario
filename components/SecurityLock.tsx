@@ -98,7 +98,6 @@ const SecurityLock: React.FC<SecurityLockProps> = ({ onUnlock, isLocked, isAuthe
       </div>
 
       <div className="text-center">
-         <p className="text-xs text-slate-500 mb-2 uppercase tracking-widest font-bold">PIN por defecto: 0000</p>
          {isAuthenticated && (
            <p className="text-slate-500 text-sm">
              ¿No eres tú? <button onClick={() => window.location.reload()} className="text-white font-bold hover:underline">Cerrar Sesión</button>
