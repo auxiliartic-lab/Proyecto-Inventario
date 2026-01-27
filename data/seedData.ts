@@ -1,5 +1,5 @@
 
-import { Equipment, Collaborator, SoftwareLicense, MaintenanceRecord, EquipmentStatus } from '../types';
+import { Equipment, Collaborator, SoftwareLicense, MaintenanceRecord, EquipmentStatus, Credential } from '../types';
 
 export const initialEquipment: Equipment[] = [
   { id: 1, companyId: 1, siteId: 1, type: 'Laptop', brand: 'Dell', model: 'Latitude 5420', serialNumber: 'DL5420-X1', status: EquipmentStatus.ACTIVE, location: 'Oficina Central', assignedTo: 1, purchaseDate: '2024-01-15', processor: 'Intel i7', ram: '16GB', storage: '512GB SSD', os: 'Windows 11' },
@@ -52,4 +52,10 @@ export const initialLicenses: SoftwareLicense[] = [
 
 export const initialMaintenance: MaintenanceRecord[] = [
   { id: 1, companyId: 2, equipmentId: 3, date: '2025-01-15', title: 'Falla de Pantalla', description: 'La pantalla parpadea intermitentemente.', severity: 'Moderate', status: 'Open', technician: 'Soporte Externo' }
+];
+
+export const initialCredentials: Credential[] = [
+    { id: 1, companyId: 3, service: 'Consola AWS', username: 'admin_it', password: 'SafePassword123!', description: 'Acceso root a infraestructura' },
+    { id: 2, companyId: 3, service: 'Panel Hosting', username: 'webmaster', password: 'HostingPass2024', description: 'Cpanel principal' },
+    { id: 3, companyId: 3, service: 'Router Principal', username: 'root', password: 'RouterPass99', description: 'Acceso físico al rack' }
 ];

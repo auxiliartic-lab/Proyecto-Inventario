@@ -1,7 +1,6 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { AppData, loadData, saveFullData } from '../services/inventoryService';
-import { Equipment, Collaborator, SoftwareLicense, MaintenanceRecord, EquipmentStatus } from '../types';
+import { Equipment, Collaborator, SoftwareLicense, MaintenanceRecord, EquipmentStatus, Credential } from '../types';
 
 interface InventoryContextType {
   data: AppData;
@@ -27,6 +26,11 @@ interface InventoryContextType {
   addMaintenanceRecord: (data: Omit<MaintenanceRecord, 'id'>) => void;
   resolveTicket: (id: number, details: string, date: string, updatedSpecs?: Partial<Equipment>, markAsDelivered?: boolean) => void;
   toggleMaintenanceDelivery: (id: number) => void;
+
+  // Credential Actions
+  addCredential: (data: Omit<Credential, 'id'>) => void;
+  updateCredential: (data: Credential) => void;
+  deleteCredential: (id: number) => void;
 
   // System
   factoryReset: () => void;
@@ -237,6 +241,35 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
   };
 
+  const addCredential = (credData: Omit<Credential, 'id'>) => {
+    if (!data) return;
+    // Asegurar que exista el array
+    const currentCreds = data.credentials || [];
+    const newId = currentCreds.length > 0 ? Math.max(...currentCreds.map(c => c.id)) + 1 : 1;
+    const newCred = { ...credData, id: newId };
+
+    updateState({
+      ...data,
+      credentials: [...currentCreds, newCred]
+    });
+  };
+
+  const updateCredential = (credData: Credential) => {
+    if (!data) return;
+    const currentCreds = data.credentials || [];
+    const updatedList = currentCreds.map(c => c.id === credData.id ? credData : c);
+    updateState({ ...data, credentials: updatedList });
+  };
+
+  const deleteCredential = (id: number) => {
+    if (!data) return;
+    const currentCreds = data.credentials || [];
+    updateState({
+      ...data,
+      credentials: currentCreds.filter(c => c.id !== id)
+    });
+  };
+
   const factoryReset = () => {
     localStorage.removeItem('equitrack_data_v1');
     window.location.reload();
@@ -261,6 +294,9 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       addMaintenanceRecord,
       resolveTicket,
       toggleMaintenanceDelivery,
+      addCredential,
+      updateCredential,
+      deleteCredential,
       factoryReset
     }}>
       {children}

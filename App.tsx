@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { COMPANIES, NAVIGATION_ITEMS } from './appData';
 import { Company, UserRole } from './types';
@@ -12,10 +11,10 @@ import ReportsModule from './components/ReportsModule';
 import SecurityLock from './components/SecurityLock';
 
 // Configuración de Seguridad
-const INACTIVITY_LIMIT_MS = 20 * 60 * 1000; // 5 minutos
+const INACTIVITY_LIMIT_MS = 20 * 60 * 1000; // 20 minutos
 const MASTER_PIN = '0000'; 
 
-const App: React.FC = () => {
+const App = () => {
   // Estado de Navegación y Datos
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [selectedCompany, setSelectedCompany] = useState<Company>(COMPANIES[0]);
@@ -25,9 +24,20 @@ const App: React.FC = () => {
   // Estado de Seguridad
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isLocked, setIsLocked] = useState<boolean>(false);
-  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // Uso de 'any' para evitar conflictos de tipo entre Node.js Timeout y Browser number
+  const idleTimerRef = useRef<any>(null);
 
   // --- LÓGICA DE SEGURIDAD ---
+  const resetIdleTimer = () => {
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    if (isAuthenticated && !isLocked) {
+      idleTimerRef.current = setTimeout(() => {
+        setIsLocked(true);
+      }, INACTIVITY_LIMIT_MS);
+    }
+  };
+
   const handleUnlock = (pin: string): boolean => {
     if (pin === MASTER_PIN) {
       setIsAuthenticated(true);
@@ -46,15 +56,6 @@ const App: React.FC = () => {
     setIsAuthenticated(false);
     setIsLocked(false);
     setActiveTab('dashboard');
-  };
-
-  const resetIdleTimer = () => {
-    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-    if (isAuthenticated && !isLocked) {
-      idleTimerRef.current = setTimeout(() => {
-        setIsLocked(true);
-      }, INACTIVITY_LIMIT_MS);
-    }
   };
 
   useEffect(() => {

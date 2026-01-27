@@ -1,14 +1,13 @@
-
 import React, { useState, useMemo } from 'react';
-import { Company, Equipment, MaintenanceRecord, SoftwareLicense } from '../types';
+import { Company, Equipment, MaintenanceRecord, SoftwareLicense, Credential } from '../types';
 import { useInventory } from '../context/InventoryContext';
-import XLSX from 'xlsx';
+import * as XLSX from 'xlsx';
 
 interface ReportsModuleProps {
   company: Company;
 }
 
-type ReportType = 'equipment' | 'maintenance' | 'licenses';
+type ReportType = 'equipment' | 'maintenance' | 'licenses' | 'credentials';
 
 const MONTHS = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
@@ -20,7 +19,6 @@ const ReportsModule: React.FC<ReportsModuleProps> = ({ company }) => {
   const [activeTab, setActiveTab] = useState<ReportType>('equipment');
   
   // Estado para filtros de fecha
-  // CAMBIO: Por defecto en 'all' para mostrar datos históricos inmediatamente
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState<number | 'all'>('all');
   const [selectedMonth, setSelectedMonth] = useState<number | 'all'>('all');
@@ -36,8 +34,6 @@ const ReportsModule: React.FC<ReportsModuleProps> = ({ company }) => {
     return items.filter(item => {
       if (!item[dateField]) return false;
       
-      // CAMBIO: Parsing manual de string YYYY-MM-DD para evitar problemas de timezone
-      // new Date('2023-01-01') puede devolver el día anterior dependiendo de la zona horaria del navegador
       const parts = item[dateField].toString().split('-');
       if (parts.length < 3) return false;
 
@@ -55,11 +51,14 @@ const ReportsModule: React.FC<ReportsModuleProps> = ({ company }) => {
   const rawEquipment = data.equipment.filter(e => e.companyId === company.id);
   const rawMaintenance = (data.maintenance || []).filter(m => m.companyId === company.id);
   const rawLicenses = data.licenses.filter(l => l.companyId === company.id);
+  const rawCredentials = (data.credentials || []).filter(c => c.companyId === company.id);
 
   // Datos Filtrados por Tiempo
   const filteredEquipment = useMemo(() => filterByDate(rawEquipment, 'purchaseDate'), [rawEquipment, selectedYear, selectedMonth]);
   const filteredMaintenance = useMemo(() => filterByDate(rawMaintenance, 'date'), [rawMaintenance, selectedYear, selectedMonth]);
   const filteredLicenses = useMemo(() => filterByDate(rawLicenses, 'startDate'), [rawLicenses, selectedYear, selectedMonth]);
+  // Las credenciales generalmente no tienen fecha de "compra", se exportan todas.
+  const filteredCredentials = rawCredentials;
 
   // Texto descriptivo del periodo
   const periodLabel = selectedYear === 'all' 
@@ -197,12 +196,15 @@ const ReportsModule: React.FC<ReportsModuleProps> = ({ company }) => {
       const today = new Date();
       const exp = new Date(item.expirationDate);
       const status = exp < today ? 'VENCIDA' : 'Activa';
+      const assignedUser = item.assignedTo ? data.collaborators.find(c => c.id === item.assignedTo) : null;
+      const userName = assignedUser ? `${assignedUser.firstName} ${assignedUser.lastName}` : 'Sin Asignar';
       
       return {
         'ID': item.id,
         'Software': item.name,
         'Proveedor': item.vendor,
         'Tipo': item.type,
+        'Asignado A': userName,
         'Clave / Serial': item.key,
         'Inicio Contrato': item.startDate,
         'Vencimiento': item.expirationDate,
@@ -213,11 +215,30 @@ const ReportsModule: React.FC<ReportsModuleProps> = ({ company }) => {
     generateExcel(formattedData, "Reporte Licencias", `Licencias_${periodLabel.replace(/\s+/g, '_')}`);
   };
 
+  const exportCredentials = () => {
+    const formattedData = filteredCredentials.map(item => {
+      const assignedUser = item.assignedTo ? data.collaborators.find(c => c.id === item.assignedTo) : null;
+      const userName = assignedUser ? `${assignedUser.firstName} ${assignedUser.lastName}` : 'Sin Asignar';
+
+      return {
+        'ID': item.id,
+        'Servicio / Plataforma': item.service,
+        'Asignado A': userName,
+        'Usuario': item.username,
+        'Contraseña': item.password,
+        'Notas': item.description
+      };
+    });
+
+    generateExcel(formattedData, "Reporte Credenciales", `Credenciales_${company.name.replace(/\s+/g, '_')}`);
+  };
+
   const handleExport = () => {
     switch(activeTab) {
       case 'equipment': exportEquipment(); break;
       case 'maintenance': exportMaintenance(); break;
       case 'licenses': exportLicenses(); break;
+      case 'credentials': exportCredentials(); break;
     }
   };
 
@@ -248,59 +269,65 @@ const ReportsModule: React.FC<ReportsModuleProps> = ({ company }) => {
           className="bg-green-700 hover:bg-green-800 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-3 shadow-lg shadow-green-700/20 transition-all active:scale-95"
         >
           <i className="fa-solid fa-file-excel"></i>
-          <span>Exportar {activeTab === 'equipment' ? 'Equipos' : activeTab === 'maintenance' ? 'Mantenimiento' : 'Licencias'}</span>
+          <span>Exportar {
+            activeTab === 'equipment' ? 'Equipos' : 
+            activeTab === 'maintenance' ? 'Mantenimiento' : 
+            activeTab === 'licenses' ? 'Licencias' : 'Credenciales'
+          }</span>
         </button>
       </div>
 
-      {/* BARRA DE FILTROS DE TIEMPO */}
-      <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 mb-8 flex flex-col md:flex-row gap-4 items-center">
-         <div className="flex items-center gap-2 text-gray-500 text-sm font-bold uppercase tracking-wider shrink-0">
-            <i className="fa-solid fa-filter"></i>
-            Filtrar Periodo:
-         </div>
+      {/* BARRA DE FILTROS DE TIEMPO (Solo visible si no es Credenciales) */}
+      {activeTab !== 'credentials' && (
+        <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 mb-8 flex flex-col md:flex-row gap-4 items-center">
+          <div className="flex items-center gap-2 text-gray-500 text-sm font-bold uppercase tracking-wider shrink-0">
+              <i className="fa-solid fa-filter"></i>
+              Filtrar Periodo:
+          </div>
 
-         <div className="flex flex-1 gap-4 w-full md:w-auto">
-             <div className="relative w-full md:w-48">
-                <span className="absolute top-2 left-3 text-[10px] font-bold text-gray-400 uppercase">Año</span>
-                <select 
-                  value={selectedYear}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setSelectedYear(val === 'all' ? 'all' : Number(val));
-                  }}
-                  className="w-full pt-5 pb-2 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan font-bold text-sm"
-                >
-                  <option value="all">Todo el Historial</option>
-                  {availableYears.map(year => (
-                    <option key={year} value={year}>{year}</option>
-                  ))}
-                </select>
-             </div>
+          <div className="flex flex-1 gap-4 w-full md:w-auto">
+              <div className="relative w-full md:w-48">
+                  <span className="absolute top-2 left-3 text-[10px] font-bold text-gray-400 uppercase">Año</span>
+                  <select 
+                    value={selectedYear}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSelectedYear(val === 'all' ? 'all' : Number(val));
+                    }}
+                    className="w-full pt-5 pb-2 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan font-bold text-sm"
+                  >
+                    <option value="all">Todo el Historial</option>
+                    {availableYears.map(year => (
+                      <option key={year} value={year}>{year}</option>
+                    ))}
+                  </select>
+              </div>
 
-             <div className="relative w-full md:w-48">
-                <span className="absolute top-2 left-3 text-[10px] font-bold text-gray-400 uppercase">Mes</span>
-                <select 
-                  value={selectedMonth}
-                  onChange={(e) => {
-                     const val = e.target.value;
-                     setSelectedMonth(val === 'all' ? 'all' : Number(val));
-                  }}
-                  disabled={selectedYear === 'all'}
-                  className={`w-full pt-5 pb-2 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan font-bold text-sm transition-all ${selectedYear === 'all' ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  <option value="all">Todo el Año</option>
-                  {MONTHS.map((month, idx) => (
-                    <option key={idx} value={idx}>{month}</option>
-                  ))}
-                </select>
-             </div>
-         </div>
-         
-         <div className="text-right shrink-0">
-            <span className="block text-xs text-gray-400 font-bold uppercase tracking-wider">Periodo Visualizado</span>
-            <span className="block font-black text-brand-blue-dark">{periodLabel}</span>
-         </div>
-      </div>
+              <div className="relative w-full md:w-48">
+                  <span className="absolute top-2 left-3 text-[10px] font-bold text-gray-400 uppercase">Mes</span>
+                  <select 
+                    value={selectedMonth}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSelectedMonth(val === 'all' ? 'all' : Number(val));
+                    }}
+                    disabled={selectedYear === 'all'}
+                    className={`w-full pt-5 pb-2 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan font-bold text-sm transition-all ${selectedYear === 'all' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    <option value="all">Todo el Año</option>
+                    {MONTHS.map((month, idx) => (
+                      <option key={idx} value={idx}>{month}</option>
+                    ))}
+                  </select>
+              </div>
+          </div>
+          
+          <div className="text-right shrink-0">
+              <span className="block text-xs text-gray-400 font-bold uppercase tracking-wider">Periodo Visualizado</span>
+              <span className="block font-black text-brand-blue-dark">{periodLabel}</span>
+          </div>
+        </div>
+      )}
 
       {/* TABS */}
       <div className="flex p-1 bg-gray-200/50 rounded-xl mb-8 w-fit overflow-x-auto">
@@ -320,7 +347,13 @@ const ReportsModule: React.FC<ReportsModuleProps> = ({ company }) => {
            onClick={() => setActiveTab('licenses')}
            className={`px-6 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'licenses' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
          >
-           Contratación Licencias
+           Licencias
+         </button>
+         <button 
+           onClick={() => setActiveTab('credentials')}
+           className={`px-6 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'credentials' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+         >
+           Credenciales
          </button>
       </div>
 
@@ -407,6 +440,39 @@ const ReportsModule: React.FC<ReportsModuleProps> = ({ company }) => {
                 <div className="py-10">
                    <i className="fa-solid fa-folder-open text-4xl text-gray-200 mb-4"></i>
                    <p className="text-gray-400 font-bold">No hay registros de contratación en {periodLabel}</p>
+                </div>
+              )}
+           </div>
+        </div>
+      )}
+
+      {activeTab === 'credentials' && (
+        <div className="space-y-6 animate-in slide-in-from-bottom-2 duration-300">
+           <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 mb-4 text-center">
+              <p className="text-blue-800 text-sm font-bold">
+                <i className="fa-solid fa-info-circle mr-2"></i>
+                Nota: El reporte de credenciales exporta todas las contraseñas actuales visibles.
+              </p>
+           </div>
+           
+           <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
+              <StatCard label="Total Credenciales Activas" value={filteredCredentials.length} icon="fa-key" color="bg-brand-blue-dark" />
+           </div>
+
+           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center">
+              {filteredCredentials.length > 0 ? (
+                <>
+                  <div className="w-16 h-16 bg-green-50 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                     <i className="fa-solid fa-file-shield text-2xl"></i>
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900">Datos Listos para Exportar</h3>
+                  <p className="text-gray-500 max-w-md mx-auto mb-6">Se encontraron {filteredCredentials.length} credenciales almacenadas para esta compañía.</p>
+                  <button onClick={exportCredentials} className="text-brand-blue-cyan font-bold hover:underline">Descargar Excel</button>
+                </>
+              ) : (
+                <div className="py-10">
+                   <i className="fa-solid fa-folder-open text-4xl text-gray-200 mb-4"></i>
+                   <p className="text-gray-400 font-bold">No hay credenciales registradas</p>
                 </div>
               )}
            </div>

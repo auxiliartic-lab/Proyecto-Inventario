@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Company, MaintenanceRecord, Equipment } from '../types';
 import { useInventory } from '../context/InventoryContext';

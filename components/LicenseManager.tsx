@@ -1,7 +1,7 @@
-
 import React, { useState } from 'react';
 import { Company, SoftwareLicense } from '../types';
 import { useInventory } from '../context/InventoryContext';
+import LicenseForm from './forms/LicenseForm';
 
 interface LicenseManagerProps {
   company: Company;
@@ -26,17 +26,10 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
   const [filterMode, setFilterMode] = useState<'All' | 'Priority'>('All');
   
   const licenses = data.licenses.filter(l => l.companyId === company.id);
+  const collaborators = data.collaborators.filter(c => c.companyId === company.id);
 
-  const initialFormData: Partial<SoftwareLicense> = {
-    name: '',
-    vendor: '',
-    key: '',
-    type: 'Suscripción',
-    startDate: '',
-    expirationDate: ''
-  };
-
-  const [formData, setFormData] = useState<Partial<SoftwareLicense>>(initialFormData);
+  // Estado temporal para formulario
+  const [formInitialData, setFormInitialData] = useState<Partial<SoftwareLicense> | undefined>(undefined);
 
   // Lógica del Semáforo
   const calculateStatus = (expirationDate: string): LicenseStatus => {
@@ -63,18 +56,17 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
 
   const handleOpenCreate = () => {
     setEditingId(null);
-    setFormData(initialFormData);
+    setFormInitialData(undefined);
     setIsModalOpen(true);
   };
 
   const handleEdit = (license: SoftwareLicense) => {
     setEditingId(license.id);
-    setFormData({ ...license });
+    setFormInitialData(license);
     setIsModalOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = (formData: Partial<SoftwareLicense>) => {
     if (formData.name && formData.expirationDate && formData.vendor) {
       
       if (editingId) {
@@ -87,19 +79,17 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
       } else {
         // Crear
         addLicense({
+          ...formData as Omit<SoftwareLicense, 'id'>,
           companyId: company.id,
-          name: formData.name,
-          vendor: formData.vendor,
           key: formData.key || 'N/A',
           type: formData.type || 'Suscripción',
           startDate: formData.startDate || new Date().toISOString().split('T')[0],
-          expirationDate: formData.expirationDate
-        } as Omit<SoftwareLicense, 'id'>);
+        });
       }
       
       setIsModalOpen(false);
-      setFormData(initialFormData);
       setEditingId(null);
+      setFormInitialData(undefined);
     }
   };
 
@@ -166,6 +156,7 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
                 <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Software / Proveedor</th>
+                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Asignado A</th>
                 <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Clave</th>
                 <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Vigencia</th>
                 <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Estado</th>
@@ -176,6 +167,7 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
               {filteredLicenses.map((license) => {
                 const status = calculateStatus(license.expirationDate);
                 const statusConfig = getStatusConfig(status);
+                const assignedUser = license.assignedTo ? collaborators.find(c => c.id === license.assignedTo) : null;
 
                 return (
                   <tr key={license.id} className="hover:bg-gray-50/50 transition-colors group">
@@ -184,6 +176,18 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
                          <p className="font-bold text-gray-900 text-sm">{license.name}</p>
                          <p className="text-xs text-gray-500">{license.vendor}</p>
                        </div>
+                    </td>
+                    <td className="px-6 py-4">
+                        {assignedUser ? (
+                            <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded-full bg-brand-blue-cyan/10 text-brand-blue-cyan flex items-center justify-center text-[10px] font-bold">
+                                    {assignedUser.firstName.charAt(0)}{assignedUser.lastName.charAt(0)}
+                                </div>
+                                <span className="text-xs font-bold text-gray-700">{assignedUser.firstName} {assignedUser.lastName}</span>
+                            </div>
+                        ) : (
+                            <span className="text-xs text-gray-400 italic">-- Sin Asignar --</span>
+                        )}
                     </td>
                     <td className="px-6 py-4">
                        <div className="flex items-center gap-2">
@@ -245,6 +249,7 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
          {filteredLicenses.map((license) => {
             const status = calculateStatus(license.expirationDate);
             const statusConfig = getStatusConfig(status);
+            const assignedUser = license.assignedTo ? collaborators.find(c => c.id === license.assignedTo) : null;
 
             return (
               <div key={license.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden">
@@ -267,6 +272,13 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
                  </div>
 
                  <div className="space-y-3">
+                    {assignedUser && (
+                        <div className="flex items-center gap-2 bg-blue-50 p-2 rounded-lg">
+                            <i className="fa-solid fa-user text-brand-blue-cyan text-xs"></i>
+                            <span className="text-xs font-bold text-gray-700">{assignedUser.firstName} {assignedUser.lastName}</span>
+                        </div>
+                    )}
+
                     <div>
                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Serial / Key</p>
                       {/* break-all fuerza el salto de línea en claves largas */}
@@ -310,6 +322,23 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
                       <i className="fa-solid fa-times text-xl"></i>
                    </button>
                 </div>
+
+                {selectedLicense.assignedTo && (() => {
+                    const user = collaborators.find(c => c.id === selectedLicense.assignedTo);
+                    if (user) return (
+                        <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 mb-6 flex items-center gap-3">
+                            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-brand-blue-cyan border border-blue-100 shadow-sm">
+                                <i className="fa-solid fa-user"></i>
+                            </div>
+                            <div>
+                                <p className="text-[10px] uppercase font-bold text-blue-400 tracking-wider">Licencia Asignada A</p>
+                                <p className="font-bold text-gray-800">{user.firstName} {user.lastName}</p>
+                                <p className="text-xs text-gray-500">{user.cargo}</p>
+                            </div>
+                        </div>
+                    );
+                    return null;
+                })()}
 
                 {/* Key Section */}
                 <div className="bg-slate-50 rounded-2xl p-8 mb-8 border border-slate-100 text-center relative overflow-hidden">
@@ -383,7 +412,6 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
       {/* MODAL NUEVA / EDITAR LICENCIA */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4">
-          {/* ... formulario crear/editar ... */}
           <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="p-8">
               <div className="flex justify-between items-center mb-6">
@@ -395,89 +423,13 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Nombre del Software</label>
-                  <input 
-                    required
-                    type="text" 
-                    value={formData.name}
-                    onChange={e => setFormData({...formData, name: e.target.value})}
-                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan" 
-                    placeholder="Ej: Microsoft Office 365"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                   <div>
-                      <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Proveedor</label>
-                      <input 
-                        required
-                        type="text" 
-                        value={formData.vendor}
-                        onChange={e => setFormData({...formData, vendor: e.target.value})}
-                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan" 
-                        placeholder="Ej: Microsoft"
-                      />
-                   </div>
-                   <div>
-                      <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Tipo</label>
-                      <select 
-                        value={formData.type}
-                        onChange={e => setFormData({...formData, type: e.target.value})}
-                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan appearance-none" 
-                      >
-                        <option value="Suscripción">Suscripción</option>
-                        <option value="Perpetua">Perpetua</option>
-                        <option value="Anual">Anual</option>
-                        <option value="Gratuita">Gratuita/Open Source</option>
-                      </select>
-                   </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Clave / Serial</label>
-                  <input 
-                    type="text" 
-                    value={formData.key}
-                    onChange={e => setFormData({...formData, key: e.target.value})}
-                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan font-mono text-sm" 
-                    placeholder="XXXX-XXXX-XXXX-XXXX"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Fecha Inicio</label>
-                    <input 
-                      required
-                      type="date" 
-                      value={formData.startDate}
-                      onChange={e => setFormData({...formData, startDate: e.target.value})}
-                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan" 
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Fecha Expiración</label>
-                    <input 
-                      required
-                      type="date" 
-                      value={formData.expirationDate}
-                      onChange={e => setFormData({...formData, expirationDate: e.target.value})}
-                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan" 
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-4 flex gap-3">
-                  <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold rounded-xl transition-all">
-                    Cancelar
-                  </button>
-                  <button type="submit" className="flex-1 py-3 bg-brand-blue-cyan hover:bg-brand-blue-dark text-white font-bold rounded-xl shadow-lg shadow-brand-blue-cyan/20 transition-all">
-                    {editingId ? 'Guardar Cambios' : 'Registrar'}
-                  </button>
-                </div>
-              </form>
+              <LicenseForm 
+                initialData={formInitialData}
+                onSubmit={handleSubmit}
+                onCancel={() => setIsModalOpen(false)}
+                isEditing={!!editingId}
+                collaborators={collaborators}
+              />
             </div>
           </div>
         </div>

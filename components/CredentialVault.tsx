@@ -1,37 +1,39 @@
-
 import React, { useState } from 'react';
 import { Company, Credential } from '../types';
+import { useInventory } from '../context/InventoryContext';
+import CredentialForm from './forms/CredentialForm';
 
 interface CredentialVaultProps {
   company: Company;
 }
 
 const CredentialVault: React.FC<CredentialVaultProps> = ({ company }) => {
+  const { data, addCredential, updateCredential, deleteCredential } = useInventory();
+  
+  // Datos Globales
+  const credentials = (data.credentials || []).filter(c => c.companyId === company.id);
+  const collaborators = data.collaborators.filter(c => c.companyId === company.id);
+
+  // Estados UI
   const [showPassword, setShowPassword] = useState<Record<number, boolean>>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  
-  // Estado para Confirmación de Borrado
   const [deleteConfirm, setDeleteConfirm] = useState<{isOpen: boolean, id: number | null}>({ isOpen: false, id: null });
+  const [copiedId, setCopiedId] = useState<number | null>(null);
+  
+  // Estado para el formulario (cuando se edita)
+  const [selectedCred, setSelectedCred] = useState<Partial<Credential> | undefined>(undefined);
 
-  // Estado local para las credenciales (Simulación de base de datos)
-  const [credentials, setCredentials] = useState<Credential[]>([
-    { id: 1, companyId: company.id, service: 'Consola AWS', username: 'admin_it', password: 'SafePassword123!', description: 'Acceso root a infraestructura' },
-    { id: 2, companyId: company.id, service: 'Panel Hosting', username: 'webmaster', password: 'HostingPass2024', description: 'Cpanel principal' },
-    { id: 3, companyId: company.id, service: 'Router Principal', username: 'root', password: 'RouterPass99', description: 'Acceso físico al rack' }
-  ]);
-
-  const initialFormData: Partial<Credential> = {
-    service: '',
-    username: '',
-    password: '',
-    description: ''
-  };
-
-  const [formData, setFormData] = useState<Partial<Credential>>(initialFormData);
+  // --- GESTIÓN DE CREDENCIALES ---
 
   const toggleVisibility = (id: number) => {
     setShowPassword(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const handleCopyToClipboard = (text: string, id: number) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
   const requestDelete = (id: number) => {
@@ -40,226 +42,203 @@ const CredentialVault: React.FC<CredentialVaultProps> = ({ company }) => {
 
   const confirmDelete = () => {
     if (deleteConfirm.id) {
-      setCredentials(prev => prev.filter(c => c.id !== deleteConfirm.id));
+      deleteCredential(deleteConfirm.id);
       setDeleteConfirm({ isOpen: false, id: null });
     }
   };
 
   const handleOpenCreate = () => {
     setEditingId(null);
-    setFormData(initialFormData);
+    setSelectedCred(undefined);
     setIsModalOpen(true);
   };
 
   const handleEdit = (cred: Credential) => {
     setEditingId(cred.id);
-    setFormData({
-      service: cred.service,
-      username: cred.username,
-      password: cred.password || '',
-      description: cred.description
-    });
+    setSelectedCred(cred);
     setIsModalOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = (formData: Partial<Credential>) => {
     if (!formData.service || !formData.username || !formData.password) return;
 
     if (editingId) {
-      // Actualizar existente
-      setCredentials(prev => prev.map(c => c.id === editingId ? {
-        ...c,
-        service: formData.service!,
-        username: formData.username!,
-        password: formData.password!,
-        description: formData.description || ''
-      } : c));
+      updateCredential({
+        ...formData as Credential,
+        id: editingId,
+        companyId: company.id
+      });
     } else {
-      // Crear nueva
-      const newCredential: Credential = {
-        id: Date.now(), // ID temporal único
-        companyId: company.id,
-        service: formData.service,
-        username: formData.username,
-        password: formData.password,
-        description: formData.description || ''
-      };
-      setCredentials([...credentials, newCredential]);
+      addCredential({
+        ...formData as Omit<Credential, 'id'>,
+        companyId: company.id
+      });
     }
 
     setIsModalOpen(false);
-    setFormData(initialFormData);
     setEditingId(null);
+    setSelectedCred(undefined);
   };
 
   return (
-    <div className="animate-in zoom-in-95 duration-500 pb-20">
-      <div className="mb-8 p-6 bg-red-50 border border-red-100 rounded-2xl flex flex-col md:flex-row items-start md:items-center gap-6">
-        <div className="bg-red-500 w-12 h-12 rounded-xl flex items-center justify-center text-white shrink-0 shadow-lg shadow-red-200">
-          <i className="fa-solid fa-shield-halved text-2xl"></i>
-        </div>
-        <div>
-           <h2 className="text-red-900 font-bold text-lg">Zona de Alta Seguridad</h2>
-           <p className="text-red-700 text-sm">El acceso a estas credenciales está auditado. Solo personal autorizado debe ver esta información.</p>
+    <div className="animate-in fade-in duration-300 pb-20">
+      
+      {/* Header Informativo (Sin botón de bloqueo) */}
+      <div className="mb-6 p-4 bg-white border border-gray-100 rounded-2xl flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm">
+        <div className="flex items-center gap-4">
+           <div className="w-10 h-10 rounded-full bg-blue-50 text-brand-blue-cyan flex items-center justify-center border border-blue-100">
+             <i className="fa-solid fa-key"></i>
+           </div>
+           <div>
+             <h2 className="font-bold text-sm uppercase tracking-wider text-gray-900">Gestor de Contraseñas</h2>
+             <p className="text-xs text-gray-500">Acceso a credenciales de {company.name}</p>
+           </div>
         </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-gray-50/50">
            <div>
-             <h3 className="font-bold text-gray-900 text-lg">Almacén de Credenciales</h3>
-             <p className="text-xs text-gray-400">Total guardado: {credentials.length}</p>
+             <h3 className="font-bold text-gray-900 text-lg">Credenciales Almacenadas</h3>
+             <p className="text-xs text-gray-400 font-mono mt-1">
+                Total: {credentials.length} registros
+             </p>
            </div>
            <button 
              onClick={handleOpenCreate}
-             className="w-full sm:w-auto bg-gray-900 hover:bg-black text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-gray-900/20"
+             className="w-full sm:w-auto bg-brand-blue-cyan hover:bg-brand-blue-dark text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-brand-blue-cyan/20"
            >
-              <i className="fa-solid fa-key"></i>
-              Nueva Credencial
+              <i className="fa-solid fa-plus"></i>
+              Agregar
            </button>
         </div>
         
         <div className="divide-y divide-gray-100">
-          {credentials.map(cred => (
-            <div key={cred.id} className="p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-6 hover:bg-gray-50 transition-colors group">
+          {credentials.map(cred => {
+            const assignedUser = cred.assignedTo ? collaborators.find(c => c.id === cred.assignedTo) : null;
+
+            return (
+            <div key={cred.id} className="p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-6 hover:bg-slate-50 transition-colors group">
                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center text-gray-600 shrink-0">
-                    <i className="fa-solid fa-vault text-xl"></i>
+                  <div className="w-12 h-12 bg-white border border-gray-100 rounded-2xl flex items-center justify-center text-gray-400 shrink-0 shadow-sm">
+                    <i className="fa-solid fa-server text-xl"></i>
                   </div>
                   <div>
-                    <p className="font-bold text-gray-900 text-lg">{cred.service}</p>
-                    <p className="text-sm text-gray-500 font-mono bg-gray-100 inline-block px-2 py-0.5 rounded mt-1">
-                      <i className="fa-solid fa-user text-xs mr-2 text-gray-400"></i>
-                      {cred.username}
+                    <p className="font-bold text-gray-900 text-lg flex items-center gap-2">
+                        {cred.service}
+                        {assignedUser && (
+                            <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full uppercase tracking-wider font-bold">
+                                <i className="fa-solid fa-user mr-1"></i> {assignedUser.firstName}
+                            </span>
+                        )}
                     </p>
-                    {cred.description && <p className="text-xs text-gray-400 mt-1 italic">{cred.description}</p>}
+                    <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">User:</span>
+                        <code className="text-sm text-gray-600 font-mono bg-gray-100 px-2 rounded border border-gray-200">
+                            {cred.username}
+                        </code>
+                    </div>
+                    {cred.description && <p className="text-xs text-gray-400 mt-2 italic border-l-2 border-gray-200 pl-2">{cred.description}</p>}
                   </div>
                </div>
 
                <div className="flex items-center gap-3">
-                  <div className="flex-1 lg:flex-none flex items-center justify-between gap-4 bg-gray-100 p-2 pl-4 rounded-xl border border-gray-200">
-                      <span className={`font-mono text-sm ${showPassword[cred.id] ? 'text-brand-blue-dark font-bold' : 'text-gray-400 select-none tracking-widest'}`}>
-                        {showPassword[cred.id] ? cred.password : '••••••••••••'}
-                      </span>
-                      <button 
-                        type="button"
-                        onClick={() => toggleVisibility(cred.id)}
-                        className="w-8 h-8 flex items-center justify-center bg-white rounded-lg shadow-sm hover:text-brand-blue-cyan transition-colors"
-                        title={showPassword[cred.id] ? "Ocultar" : "Mostrar"}
-                      >
-                        <i className={`fa-solid ${showPassword[cred.id] ? 'fa-eye-slash' : 'fa-eye'}`}></i>
-                      </button>
+                  {/* Zona de Password */}
+                  <div className="flex-1 lg:flex-none flex items-center gap-2 bg-slate-900 p-1.5 pl-4 rounded-xl border border-slate-800 shadow-inner min-w-[280px]">
+                      <div className="flex-1 overflow-hidden">
+                        {showPassword[cred.id] ? (
+                            <span className="font-mono text-sm text-green-400 font-bold tracking-wide truncate block">
+                                {cred.password}
+                            </span>
+                        ) : (
+                            <div className="flex gap-1">
+                                {Array.from({ length: 12 }).map((_, i) => (
+                                    <div key={i} className="w-1.5 h-1.5 rounded-full bg-slate-600"></div>
+                                ))}
+                            </div>
+                        )}
+                      </div>
+
+                      <div className="flex gap-1 border-l border-slate-700 pl-1">
+                        <button 
+                            type="button"
+                            onClick={() => toggleVisibility(cred.id)}
+                            className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                            title={showPassword[cred.id] ? "Ocultar" : "Mostrar"}
+                        >
+                            <i className={`fa-solid ${showPassword[cred.id] ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                        </button>
+                        <button 
+                            type="button"
+                            onClick={() => handleCopyToClipboard(cred.password || '', cred.id)}
+                            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${copiedId === cred.id ? 'text-green-400 bg-green-400/10' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}
+                            title="Copiar al portapapeles"
+                        >
+                            <i className={`fa-solid ${copiedId === cred.id ? 'fa-check' : 'fa-copy'}`}></i>
+                        </button>
+                      </div>
                   </div>
                   
-                  {/* Botón Editar */}
-                  <button 
-                    type="button"
-                    onClick={() => handleEdit(cred)}
-                    className="w-10 h-10 flex items-center justify-center rounded-xl text-gray-300 hover:bg-brand-yellow/10 hover:text-brand-yellow transition-all"
-                    title="Editar Credencial"
-                  >
-                    <i className="fa-solid fa-pen"></i>
-                  </button>
+                  {/* Botones CRUD */}
+                  <div className="flex gap-1 ml-2 border-l border-gray-200 pl-3">
+                    <button 
+                        type="button"
+                        onClick={() => handleEdit(cred)}
+                        className="w-9 h-9 flex items-center justify-center rounded-lg text-gray-400 hover:bg-brand-yellow/10 hover:text-brand-yellow transition-all"
+                        title="Editar"
+                    >
+                        <i className="fa-solid fa-pen"></i>
+                    </button>
 
-                  <button 
-                    type="button"
-                    onClick={() => requestDelete(cred.id)}
-                    className="w-10 h-10 flex items-center justify-center rounded-xl text-gray-300 hover:bg-red-50 hover:text-red-500 transition-all"
-                    title="Eliminar Credencial"
-                  >
-                    <i className="fa-solid fa-trash-can"></i>
-                  </button>
+                    <button 
+                        type="button"
+                        onClick={() => requestDelete(cred.id)}
+                        className="w-9 h-9 flex items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-500 transition-all"
+                        title="Eliminar"
+                    >
+                        <i className="fa-solid fa-trash-can"></i>
+                    </button>
+                  </div>
                </div>
             </div>
-          ))}
+          );
+          })}
 
           {credentials.length === 0 && (
-            <div className="p-10 text-center text-gray-400">
-              <i className="fa-solid fa-folder-open text-3xl mb-3 opacity-30"></i>
-              <p>No hay credenciales guardadas</p>
+            <div className="p-16 text-center">
+              <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                 <i className="fa-solid fa-folder-open text-gray-300 text-3xl"></i>
+              </div>
+              <p className="text-gray-500 font-medium">Sin credenciales</p>
+              <p className="text-gray-400 text-xs mt-1">Agregue accesos a servidores, paneles o servicios.</p>
             </div>
           )}
         </div>
       </div>
 
-      {/* MODAL NUEVA / EDITAR CREDENCIAL */}
+      {/* MODAL NUEVA / EDITAR CREDENCIAL (Usando componente separado) */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4">
-          {/* ... formulario crear/editar ... */}
-          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-gray-900/80 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200 border border-gray-100">
             <div className="p-8">
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-black text-gray-900">
-                  {editingId ? 'Editar Credencial' : 'Guardar Credencial'}
-                </h2>
+                <div>
+                    <h2 className="text-xl font-black text-gray-900">
+                    {editingId ? 'Editar Credencial' : 'Nueva Credencial'}
+                    </h2>
+                    <p className="text-xs text-gray-500">Gestión de accesos seguros.</p>
+                </div>
                 <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600">
                   <i className="fa-solid fa-times text-xl"></i>
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Servicio / Plataforma</label>
-                  <input 
-                    required
-                    type="text" 
-                    value={formData.service}
-                    onChange={e => setFormData({...formData, service: e.target.value})}
-                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-gray-900 transition-all" 
-                    placeholder="Ej: AWS Console, GoDaddy..."
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Usuario / Email</label>
-                  <input 
-                    required
-                    type="text" 
-                    value={formData.username}
-                    onChange={e => setFormData({...formData, username: e.target.value})}
-                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-gray-900 transition-all" 
-                    placeholder="admin@empresa.com"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Contraseña</label>
-                  <div className="relative">
-                    <input 
-                      required
-                      type="text" 
-                      value={formData.password}
-                      onChange={e => setFormData({...formData, password: e.target.value})}
-                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-gray-900 transition-all font-mono" 
-                      placeholder="••••••••"
-                    />
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
-                       <i className="fa-solid fa-lock"></i>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Descripción (Opcional)</label>
-                  <textarea 
-                    rows={2}
-                    value={formData.description}
-                    onChange={e => setFormData({...formData, description: e.target.value})}
-                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-gray-900 transition-all resize-none" 
-                    placeholder="Notas adicionales..."
-                  />
-                </div>
-
-                <div className="pt-4 flex gap-3">
-                  <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold rounded-xl transition-all">
-                    Cancelar
-                  </button>
-                  <button type="submit" className="flex-1 py-3 bg-gray-900 hover:bg-black text-white font-bold rounded-xl shadow-lg shadow-gray-900/20 transition-all">
-                    {editingId ? 'Actualizar' : 'Guardar Seguro'}
-                  </button>
-                </div>
-              </form>
+              <CredentialForm 
+                initialData={selectedCred}
+                onSubmit={handleSubmit}
+                onCancel={() => setIsModalOpen(false)}
+                collaborators={collaborators}
+              />
             </div>
           </div>
         </div>
@@ -267,14 +246,14 @@ const CredentialVault: React.FC<CredentialVaultProps> = ({ company }) => {
 
       {/* --- MODAL CONFIRMACION ELIMINAR --- */}
       {deleteConfirm.isOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-gray-900/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center transform transition-all scale-100">
             <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500 text-2xl">
               <i className="fa-solid fa-triangle-exclamation"></i>
             </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">¿Estás seguro?</h3>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Eliminar Credencial</h3>
             <p className="text-sm text-gray-500 mb-6">
-              Esta credencial se eliminará permanentemente de la bóveda segura.
+              Esta acción eliminará permanentemente la entrada.
             </p>
             <div className="flex gap-3">
               <button 
@@ -289,7 +268,7 @@ const CredentialVault: React.FC<CredentialVaultProps> = ({ company }) => {
                 onClick={confirmDelete}
                 className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-lg shadow-red-500/30 transition-colors"
               >
-                Sí, Eliminar
+                Eliminar
               </button>
             </div>
           </div>

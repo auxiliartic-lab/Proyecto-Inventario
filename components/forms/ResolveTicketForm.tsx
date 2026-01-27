@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Equipment } from '../../types';
 
@@ -70,7 +69,6 @@ const ResolveTicketForm: React.FC<ResolveTicketFormProps> = ({ equipment, onSubm
                     value={resolveForm.details}
                     onChange={(e) => setResolveForm({...resolveForm, details: e.target.value})}
                     className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-green-500 resize-none transition-all text-sm"
-                    placeholder="Describa qué acciones se tomaron para solucionar la incidencia..."
                 />
             </div>
 

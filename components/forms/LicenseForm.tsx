@@ -1,22 +1,24 @@
-
-import React, { useState } from 'react';
-import { SoftwareLicense } from '../../types';
+import * as React from 'react';
+import { useState } from 'react';
+import { SoftwareLicense, Collaborator } from '../../types';
 
 interface LicenseFormProps {
   initialData?: Partial<SoftwareLicense>;
   onSubmit: (data: Partial<SoftwareLicense>) => void;
   onCancel: () => void;
   isEditing: boolean;
+  collaborators: Collaborator[];
 }
 
-const LicenseForm: React.FC<LicenseFormProps> = ({ initialData, onSubmit, onCancel, isEditing }) => {
+const LicenseForm: React.FC<LicenseFormProps> = ({ initialData, onSubmit, onCancel, isEditing, collaborators }) => {
   const defaultData: Partial<SoftwareLicense> = {
     name: '',
     vendor: '',
     key: '',
     type: 'Suscripción',
     startDate: '',
-    expirationDate: ''
+    expirationDate: '',
+    assignedTo: undefined
   };
 
   const [formData, setFormData] = useState<Partial<SoftwareLicense>>(initialData || defaultData);
@@ -36,7 +38,6 @@ const LicenseForm: React.FC<LicenseFormProps> = ({ initialData, onSubmit, onCanc
           value={formData.name}
           onChange={e => setFormData({...formData, name: e.target.value})}
           className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan" 
-          placeholder="Ej: Microsoft Office 365"
         />
       </div>
 
@@ -49,7 +50,6 @@ const LicenseForm: React.FC<LicenseFormProps> = ({ initialData, onSubmit, onCanc
               value={formData.vendor}
               onChange={e => setFormData({...formData, vendor: e.target.value})}
               className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan" 
-              placeholder="Ej: Microsoft"
             />
           </div>
           <div>
@@ -74,8 +74,21 @@ const LicenseForm: React.FC<LicenseFormProps> = ({ initialData, onSubmit, onCanc
           value={formData.key}
           onChange={e => setFormData({...formData, key: e.target.value})}
           className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan font-mono text-sm" 
-          placeholder="XXXX-XXXX-XXXX-XXXX"
         />
+      </div>
+
+      <div>
+        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Asignar A (Usuario Final)</label>
+        <select 
+          value={formData.assignedTo || ''}
+          onChange={(e) => setFormData({...formData, assignedTo: e.target.value ? Number(e.target.value) : undefined})}
+          className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan appearance-none"
+        >
+          <option value="">-- Sin Asignar --</option>
+          {collaborators.map(c => (
+            <option key={c.id} value={c.id}>{c.firstName} {c.lastName} | {c.cargo}</option>
+          ))}
+        </select>
       </div>
 
       <div className="grid grid-cols-2 gap-4">

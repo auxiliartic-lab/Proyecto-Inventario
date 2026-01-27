@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Equipment, EquipmentStatus, Collaborator } from '../../types';
 
@@ -175,7 +174,6 @@ const EquipmentForm: React.FC<EquipmentFormProps> = ({
             value={formData.serialNumber}
             onChange={(e) => setFormData({...formData, serialNumber: e.target.value})}
             className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-brand-blue-cyan/10 focus:border-brand-blue-cyan font-bold text-sm transition-all" 
-            placeholder="DL-XXXXXXXX" 
           />
         </div>
       </div>
@@ -190,7 +188,6 @@ const EquipmentForm: React.FC<EquipmentFormProps> = ({
             value={formData.brand}
             onChange={(e) => setFormData({...formData, brand: e.target.value})}
             className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-brand-blue-cyan/10 focus:border-brand-blue-cyan font-bold text-sm transition-all" 
-            placeholder="Seleccionar o escribir..." 
           />
         </div>
         <div>
@@ -201,7 +198,6 @@ const EquipmentForm: React.FC<EquipmentFormProps> = ({
             value={formData.model}
             onChange={(e) => setFormData({...formData, model: e.target.value})}
             className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-brand-blue-cyan/10 focus:border-brand-blue-cyan font-bold text-sm transition-all" 
-            placeholder="Latitude, ProLiant, etc." 
           />
         </div>
       </div>
@@ -220,7 +216,6 @@ const EquipmentForm: React.FC<EquipmentFormProps> = ({
                 value={formData.peripheralType}
                 onChange={(e) => setFormData({...formData, peripheralType: e.target.value})}
                 className="w-full p-2.5 bg-white border border-slate-200 rounded-lg outline-none text-xs font-bold focus:border-brand-blue-cyan transition-colors" 
-                placeholder="Ej: Mouse, Monitor, Teclado..." 
               />
           </div>
         </div>
@@ -243,7 +238,6 @@ const EquipmentForm: React.FC<EquipmentFormProps> = ({
                     value={formData.processor}
                     onChange={(e) => setFormData({...formData, processor: e.target.value})}
                     className="w-full p-2.5 bg-white border border-slate-200 rounded-lg outline-none text-xs font-bold focus:border-brand-blue-cyan transition-colors" 
-                    placeholder="Seleccionar o escribir..." 
                   />
                 </div>
                 <div>
@@ -254,7 +248,6 @@ const EquipmentForm: React.FC<EquipmentFormProps> = ({
                     value={formData.ram}
                     onChange={(e) => setFormData({...formData, ram: e.target.value})}
                     className="w-full p-2.5 bg-white border border-slate-200 rounded-lg outline-none text-xs font-bold focus:border-brand-blue-cyan transition-colors" 
-                    placeholder="Ej: 16GB" 
                   />
                 </div>
               </>
@@ -267,7 +260,6 @@ const EquipmentForm: React.FC<EquipmentFormProps> = ({
                 value={formData.storage}
                 onChange={(e) => setFormData({...formData, storage: e.target.value})}
                 className="w-full p-2.5 bg-white border border-slate-200 rounded-lg outline-none text-xs font-bold focus:border-brand-blue-cyan transition-colors" 
-                placeholder="Ej: 512GB SSD" 
               />
             </div>
             <div>
@@ -278,7 +270,6 @@ const EquipmentForm: React.FC<EquipmentFormProps> = ({
                 value={formData.os}
                 onChange={(e) => setFormData({...formData, os: e.target.value})}
                 className="w-full p-2.5 bg-white border border-slate-200 rounded-lg outline-none text-xs font-bold focus:border-brand-blue-cyan transition-colors" 
-                placeholder="Seleccionar o escribir..." 
               />
             </div>
           </div>

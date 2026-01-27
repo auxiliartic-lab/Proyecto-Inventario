@@ -1,32 +1,31 @@
-
 import React, { useState, useRef, useEffect } from 'react';
-import { Company, Collaborator, Equipment } from '../types';
+import { Company, Collaborator, Equipment, SoftwareLicense, Credential } from '../types';
 import { useInventory } from '../context/InventoryContext';
 
 interface CollaboratorListProps {
   company: Company;
 }
 
-// AVATARES LOCALES (SVG Base64) - Ya no dependen de internet
-const AVATAR_MALE = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyMDAgMjAwIj4KICA8Y2lyY2xlIGN4PSIxMDAiIGN5PSIxMDAiIHI9IjEwMCIgZmlsbD0iI2UzZjJZmQiLz4KICA8Y2lyY2xlIGN4PSIxMDAiIGN5PSI4NSIgcj0iNDUiIGZpbGw9IiMzYjgyZjYiLz4KICA8cGF0aCBkPSJNNDAuMiAxNjlDNDYuNSAxNDQuNiA3MS4zIDEyNy41IDEwMCAxMjcuNWMyOC43IDAgNTMuNSAxNy4xIDU5LjggNDEuNUgxMDAgNDAuMnoiIGZpbGw9IiMzYjgyZjYiLz4KPC9zdmc+";
-const AVATAR_FEMALE = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyMDAgMjAwIj4KICA8Y2lyY2xlIGN4PSIxMDAiIGN5PSIxMDAiIHI9IjEwMCIgZmlsbD0iI2ZmZTRlNiIvPgogIDxjaXJjbGUgY3g9IjEwMCIgY3k9Ijg1IiByPSI0NSIgZmlsbD0iI2VjNDg5OSIvPgogIDxwYXRoIGQ9Ik00MC4yIDE2OUM0Ni41IDE0NC42IDcxLjMgMTI3LjUgMTAwIDEyNy41YzI4LjcgMCA1My41IDE3LjEgNTkuOCA0MS41SDEwMCA0MC4yeiIgZmlsbD0iI2VjNDg5OSIvPgo8L3N2Zz4=";
+// AVATARES LOCALES (SVG Base64) - Corregidos para asegurar visualización
+const AVATAR_MALE = "data:image/svg+xml;base64,PHN2ZyB2aWV3Qm94PSIwIDAgMTAwIDEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI0UwRjJGRSIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iNDAiIHI9IjE1IiBmaWxsPSIjMDI4NEM3Ii8+PHBhdGggZD0iTTI1IDg1IFEyNSA2MCA1MCA2MCBRNzUgNjAgNzUgODUiIGZpbGw9IiMwMjg0QzciLz48L3N2Zz4=";
+const AVATAR_FEMALE = "data:image/svg+xml;base64,PHN2ZyB2aWV3Qm94PSIwIDAgMTAwIDEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI0ZDRTdGMyIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iNDAiIHI9IjE1IiBmaWxsPSIjREIyNzc3Ii8+PHBhdGggZD0iTTI1IDg1IFEyNSA2MCA1MCA2MCBRNzUgNjAgNzUgODUiIGZpbGw9IiNEQjI3NzciLz48L3N2Zz4=";
 
-// Lista de cargos ordenada alfabéticamente por abreviatura
+// Lista de cargos ordenada alfabéticamente con Nombres Completos
 const JOB_TITLES = [
   { label: 'Analista Contable', value: 'Analista Contable' },
-  { label: 'Asist. Ejec.', value: 'Asistente Ejecutiva' },
-  { label: 'Aux. Admin.', value: 'Auxiliar Administrativo' },
-  { label: 'Coord. Comp. y Alm.', value: 'Coordinador de Compras y Almacén' },
-  { label: 'Coord. Seg. Hig. Amb.', value: 'Coordinador de Seguridad e Higiene y Ambiental' },
-  { label: 'Gte. Gral. RR.HH.', value: 'Gerente General de Recursos Humanos' },
-  { label: 'Gte. Nuevos Neg.', value: 'Gerente Desarrollo de Nuevos Negocios' },
-  { label: 'Gte. Planta', value: 'Gerente de planta' },
+  { label: 'Asistente Ejecutiva', value: 'Asistente Ejecutiva' },
+  { label: 'Auxiliar Administrativo', value: 'Auxiliar Administrativo' },
+  { label: 'Coordinador de Compras y Almacén', value: 'Coordinador de Compras y Almacén' },
+  { label: 'Coordinador de Seguridad e Higiene y Ambiental', value: 'Coordinador de Seguridad e Higiene y Ambiental' },
+  { label: 'Gerente Desarrollo de Nuevos Negocios', value: 'Gerente Desarrollo de Nuevos Negocios' },
+  { label: 'Gerente General de Recursos Humanos', value: 'Gerente General de Recursos Humanos' },
+  { label: 'Gerente de Planta', value: 'Gerente de planta' },
   { label: 'Instrumentista', value: 'Instrumentista' },
-  { label: 'Jef. Calidad', value: 'Jefe de Calidad' },
-  { label: 'Jef. Comp. y Alm.', value: 'Jefe de Compras y Almacén' },
-  { label: 'Jef. Despachos', value: 'Jefe de Despachos' },
-  { label: 'Jef. Mant.', value: 'Jefe de Mantenimiento' },
-  { label: 'Plan. Mant.', value: 'Planeador de Mantenimiento' }
+  { label: 'Jefe de Calidad', value: 'Jefe de Calidad' },
+  { label: 'Jefe de Compras y Almacén', value: 'Jefe de Compras y Almacén' },
+  { label: 'Jefe de Despachos', value: 'Jefe de Despachos' },
+  { label: 'Jefe de Mantenimiento', value: 'Jefe de Mantenimiento' },
+  { label: 'Planeador de Mantenimiento', value: 'Planeador de Mantenimiento' }
 ];
 
 const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
@@ -38,7 +37,10 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{isOpen: boolean, id: number | null}>({ isOpen: false, id: null });
   
-  // Estados de Filtro y Búsqueda (NUEVO)
+  // Estado para Pestañas del Perfil (Equipos, Licencias, Credenciales)
+  const [profileTab, setProfileTab] = useState<'equipment' | 'licenses' | 'credentials'>('equipment');
+
+  // Estados de Filtro y Búsqueda
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
@@ -94,9 +96,17 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
 
   const [formData, setFormData] = useState<Partial<Collaborator>>(initialFormData);
 
-  // Helper: Obtener equipos asignados
+  // Helpers para obtener asignaciones
   const getAssignedAssets = (collaboratorId: number) => {
     return data.equipment.filter(e => e.assignedTo === collaboratorId);
+  };
+
+  const getAssignedLicenses = (collaboratorId: number) => {
+    return data.licenses.filter(l => l.assignedTo === collaboratorId);
+  };
+
+  const getAssignedCredentials = (collaboratorId: number) => {
+    return (data.credentials || []).filter(c => c.assignedTo === collaboratorId);
   };
 
   // Helper: Icono por tipo
@@ -127,6 +137,7 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
 
   const handleViewDetails = (collab: Collaborator) => {
     setSelectedCollaborator(collab);
+    setProfileTab('equipment'); // Resetear tab al abrir
     setViewModalOpen(true);
     setOpenMenuId(null);
   };
@@ -284,8 +295,9 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
                         </div>
                       </div>
 
-                      <p className={`text-sm font-bold ${c.isActive ? 'text-brand-blue-dark' : 'text-gray-500'}`}>{c.cargo}</p>
-                      <p className="text-gray-400 text-xs mb-3">{c.area}</p>
+                      {/* Cargo con letra más pequeña para nombres largos */}
+                      <p className={`text-xs font-bold leading-tight ${c.isActive ? 'text-brand-blue-dark' : 'text-gray-500'}`}>{c.cargo}</p>
+                      <p className="text-gray-400 text-xs mb-3 mt-1">{c.area}</p>
                       
                       <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded-lg w-fit max-w-full">
                           <i className="fa-solid fa-envelope text-gray-400"></i>
@@ -306,7 +318,7 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
                   {assetCount > 0 ? (
                     <div className="flex gap-2 mt-2 overflow-x-auto pb-1 no-scrollbar">
                        {/* Mostrar iconos únicos de tipos de equipos que tiene */}
-                       {Array.from(new Set(assignedAssets.map(a => a.type))).slice(0, 5).map(type => (
+                       {Array.from(new Set(assignedAssets.map(a => a.type))).slice(0, 5).map((type: string) => (
                           <div key={type} className="w-8 h-8 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-500 shadow-sm shrink-0" title={type}>
                              <i className={`fa-solid ${getAssetIcon(type)} text-xs`}></i>
                           </div>
@@ -365,7 +377,6 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
                       value={formData.firstName}
                       onChange={e => setFormData({...formData, firstName: e.target.value})}
                       className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan" 
-                      placeholder="Ej: Ana"
                     />
                   </div>
                   <div>
@@ -376,7 +387,6 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
                       value={formData.lastName}
                       onChange={e => setFormData({...formData, lastName: e.target.value})}
                       className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan" 
-                      placeholder="Ej: Silva"
                     />
                   </div>
                 </div>
@@ -390,7 +400,6 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
                       value={formData.email}
                       onChange={e => setFormData({...formData, email: e.target.value})}
                       className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan" 
-                      placeholder="ana.silva@empresa.com"
                     />
                   </div>
                   <div>
@@ -431,7 +440,6 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
                       value={formData.area}
                       onChange={e => setFormData({...formData, area: e.target.value})}
                       className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan" 
-                      placeholder="Ej: Finanzas"
                     />
                   </div>
                 </div>
@@ -497,47 +505,142 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company }) => {
                </div>
             </div>
 
-            {/* COLUMNA DERECHA: ACTIVOS */}
+            {/* COLUMNA DERECHA: PESTAÑAS Y CONTENIDO */}
             <div className="w-full md:w-2/3 p-8 flex flex-col">
-               <div className="flex justify-between items-center mb-6">
+               <div className="flex justify-between items-center mb-4">
                   <div>
-                    <h3 className="text-xl font-bold text-gray-900">Activos en Custodia</h3>
-                    <p className="text-sm text-gray-500">Equipos asignados actualmente.</p>
+                    <h3 className="text-xl font-bold text-gray-900">Detalle de Asignaciones</h3>
+                    <p className="text-sm text-gray-500">Recursos asignados actualmente.</p>
                   </div>
                   <button onClick={() => setViewModalOpen(false)} className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors">
                       <i className="fa-solid fa-times text-lg"></i>
                   </button>
                </div>
 
+               {/* TABS HEADER */}
+               <div className="flex items-center gap-2 mb-4 border-b border-gray-100 pb-1">
+                    <button 
+                        onClick={() => setProfileTab('equipment')}
+                        className={`px-4 py-2 text-sm font-bold rounded-lg transition-all ${profileTab === 'equipment' ? 'bg-brand-blue-cyan text-white shadow-md' : 'text-gray-400 hover:bg-gray-50'}`}
+                    >
+                        Equipos
+                    </button>
+                    <button 
+                        onClick={() => setProfileTab('licenses')}
+                        className={`px-4 py-2 text-sm font-bold rounded-lg transition-all ${profileTab === 'licenses' ? 'bg-brand-blue-cyan text-white shadow-md' : 'text-gray-400 hover:bg-gray-50'}`}
+                    >
+                        Licencias
+                    </button>
+                    <button 
+                        onClick={() => setProfileTab('credentials')}
+                        className={`px-4 py-2 text-sm font-bold rounded-lg transition-all ${profileTab === 'credentials' ? 'bg-brand-blue-cyan text-white shadow-md' : 'text-gray-400 hover:bg-gray-50'}`}
+                    >
+                        Credenciales
+                    </button>
+               </div>
+
                <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
-                  {getAssignedAssets(selectedCollaborator.id).length > 0 ? (
-                    <div className="space-y-3">
-                      {getAssignedAssets(selectedCollaborator.id).map(asset => (
-                        <div key={asset.id} className="flex items-center gap-4 p-4 rounded-xl border border-gray-100 hover:border-brand-blue-cyan/30 hover:bg-brand-blue-cyan/5 transition-all group">
-                           <div className="w-12 h-12 rounded-xl bg-white border border-gray-100 flex items-center justify-center text-brand-blue-cyan shadow-sm group-hover:scale-110 transition-transform">
-                              <i className={`fa-solid ${getAssetIcon(asset.type)} text-xl`}></i>
-                           </div>
-                           <div className="flex-1 min-w-0">
-                              <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">{asset.type}</p>
-                              <p className="font-bold text-gray-900 text-sm">{asset.brand} {asset.model}</p>
-                              <p className="text-xs text-gray-500 font-mono mt-0.5">SN: {asset.serialNumber}</p>
-                           </div>
-                           <div className="text-right">
-                              <span className="px-2 py-1 bg-green-100 text-green-700 text-[10px] font-black uppercase rounded-lg">Asignado</span>
-                           </div>
+                  {/* --- TAB EQUIPOS --- */}
+                  {profileTab === 'equipment' && (
+                    getAssignedAssets(selectedCollaborator.id).length > 0 ? (
+                        <div className="space-y-3">
+                        {getAssignedAssets(selectedCollaborator.id).map(asset => {
+                            const isMaintenance = asset.status === 'Mantenimiento';
+                            return (
+                                <div key={asset.id} className={`flex items-center gap-4 p-4 rounded-xl border ${isMaintenance ? 'border-yellow-200 bg-yellow-50/50' : 'border-gray-100 hover:border-brand-blue-cyan/30 hover:bg-brand-blue-cyan/5'} transition-all group`}>
+                                    <div className={`w-12 h-12 rounded-xl bg-white border ${isMaintenance ? 'border-yellow-100 text-yellow-600' : 'border-gray-100 text-brand-blue-cyan'} flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform`}>
+                                        <i className={`fa-solid ${getAssetIcon(asset.type)} text-xl`}></i>
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">{asset.type}</p>
+                                        <p className="font-bold text-gray-900 text-sm">{asset.brand} {asset.model}</p>
+                                        <p className="text-xs text-gray-500 font-mono mt-0.5">SN: {asset.serialNumber}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className={`px-2 py-1 text-[10px] font-black uppercase rounded-lg ${isMaintenance ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>
+                                            {isMaintenance ? 'Mantenimiento' : 'Asignado'}
+                                        </span>
+                                    </div>
+                                </div>
+                            );
+                        })}
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-60">
-                        <i className="fa-solid fa-box-open text-4xl mb-3"></i>
-                        <p className="font-medium text-sm">Sin equipos asignados</p>
-                    </div>
+                    ) : (
+                        <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-60">
+                            <i className="fa-solid fa-laptop text-4xl mb-3"></i>
+                            <p className="font-medium text-sm">Sin equipos asignados</p>
+                        </div>
+                    )
+                  )}
+
+                  {/* --- TAB LICENCIAS --- */}
+                  {profileTab === 'licenses' && (
+                    getAssignedLicenses(selectedCollaborator.id).length > 0 ? (
+                        <div className="space-y-3">
+                        {getAssignedLicenses(selectedCollaborator.id).map(license => (
+                            <div key={license.id} className="flex items-center gap-4 p-4 rounded-xl border border-gray-100 hover:border-brand-yellow/30 hover:bg-brand-yellow/5 transition-all group">
+                                <div className="w-12 h-12 rounded-xl bg-white border border-gray-100 flex items-center justify-center text-brand-yellow shadow-sm group-hover:scale-110 transition-transform">
+                                    <i className="fa-solid fa-certificate text-xl"></i>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">{license.vendor}</p>
+                                    <p className="font-bold text-gray-900 text-sm">{license.name}</p>
+                                    <p className="text-xs text-gray-500 mt-0.5">Expira: {license.expirationDate}</p>
+                                </div>
+                                <div className="text-right">
+                                    <span className="px-2 py-1 bg-yellow-100 text-yellow-700 text-[10px] font-black uppercase rounded-lg">Activa</span>
+                                </div>
+                            </div>
+                        ))}
+                        </div>
+                    ) : (
+                        <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-60">
+                            <i className="fa-solid fa-file-signature text-4xl mb-3"></i>
+                            <p className="font-medium text-sm">Sin licencias asignadas</p>
+                        </div>
+                    )
+                  )}
+
+                  {/* --- TAB CREDENCIALES --- */}
+                  {profileTab === 'credentials' && (
+                    getAssignedCredentials(selectedCollaborator.id).length > 0 ? (
+                        <div className="space-y-3">
+                        {getAssignedCredentials(selectedCollaborator.id).map(cred => (
+                            <div key={cred.id} className="flex items-center gap-4 p-4 rounded-xl border border-gray-100 hover:border-brand-blue-dark/30 hover:bg-brand-blue-dark/5 transition-all group">
+                                <div className="w-12 h-12 rounded-xl bg-white border border-gray-100 flex items-center justify-center text-brand-blue-dark shadow-sm group-hover:scale-110 transition-transform">
+                                    <i className="fa-solid fa-key text-xl"></i>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">Credencial</p>
+                                    <p className="font-bold text-gray-900 text-sm">{cred.service}</p>
+                                    <p className="text-xs text-gray-500 font-mono mt-0.5">User: {cred.username}</p>
+                                </div>
+                                <div className="text-right">
+                                    <div className="w-8 h-8 flex items-center justify-center bg-gray-100 rounded-lg text-gray-400">
+                                        <i className="fa-solid fa-lock"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                        </div>
+                    ) : (
+                        <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-60">
+                            <i className="fa-solid fa-shield-halved text-4xl mb-3"></i>
+                            <p className="font-medium text-sm">Sin credenciales asignadas</p>
+                        </div>
+                    )
                   )}
                </div>
 
-               <div className="mt-6 pt-6 border-t border-gray-100 flex justify-between items-center">
-                   <p className="text-xs font-bold text-gray-400 uppercase">Total Items: <span className="text-gray-900 text-sm ml-1">{getAssignedAssets(selectedCollaborator.id).length}</span></p>
+               <div className="mt-4 pt-4 border-t border-gray-100 flex justify-between items-center">
+                   <p className="text-xs font-bold text-gray-400 uppercase">
+                        Total {profileTab === 'equipment' ? 'Equipos' : profileTab === 'licenses' ? 'Licencias' : 'Credenciales'}: 
+                        <span className="text-gray-900 text-sm ml-1">
+                            {profileTab === 'equipment' ? getAssignedAssets(selectedCollaborator.id).length :
+                             profileTab === 'licenses' ? getAssignedLicenses(selectedCollaborator.id).length :
+                             getAssignedCredentials(selectedCollaborator.id).length}
+                        </span>
+                   </p>
                    <button 
                      onClick={() => setViewModalOpen(false)}
                      className="px-6 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold rounded-lg text-sm transition-colors"

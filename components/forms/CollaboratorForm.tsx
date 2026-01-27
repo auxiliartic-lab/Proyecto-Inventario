@@ -1,23 +1,22 @@
-
 import React, { useState } from 'react';
 import { Collaborator } from '../../types';
 
-// Lista de cargos ordenada alfabéticamente
+// Lista de cargos ordenada alfabéticamente con Nombres Completos
 const JOB_TITLES = [
   { label: 'Analista Contable', value: 'Analista Contable' },
-  { label: 'Asist. Ejec.', value: 'Asistente Ejecutiva' },
-  { label: 'Aux. Admin.', value: 'Auxiliar Administrativo' },
-  { label: 'Coord. Comp. y Alm.', value: 'Coordinador de Compras y Almacén' },
-  { label: 'Coord. Seg. Hig. Amb.', value: 'Coordinador de Seguridad e Higiene y Ambiental' },
-  { label: 'Gte. Gral. RR.HH.', value: 'Gerente General de Recursos Humanos' },
-  { label: 'Gte. Nuevos Neg.', value: 'Gerente Desarrollo de Nuevos Negocios' },
-  { label: 'Gte. Planta', value: 'Gerente de planta' },
+  { label: 'Asistente Ejecutiva', value: 'Asistente Ejecutiva' },
+  { label: 'Auxiliar Administrativo', value: 'Auxiliar Administrativo' },
+  { label: 'Coordinador de Compras y Almacén', value: 'Coordinador de Compras y Almacén' },
+  { label: 'Coordinador de Seguridad e Higiene y Ambiental', value: 'Coordinador de Seguridad e Higiene y Ambiental' },
+  { label: 'Gerente Desarrollo de Nuevos Negocios', value: 'Gerente Desarrollo de Nuevos Negocios' },
+  { label: 'Gerente General de Recursos Humanos', value: 'Gerente General de Recursos Humanos' },
+  { label: 'Gerente de Planta', value: 'Gerente de planta' },
   { label: 'Instrumentista', value: 'Instrumentista' },
-  { label: 'Jef. Calidad', value: 'Jefe de Calidad' },
-  { label: 'Jef. Comp. y Alm.', value: 'Jefe de Compras y Almacén' },
-  { label: 'Jef. Despachos', value: 'Jefe de Despachos' },
-  { label: 'Jef. Mant.', value: 'Jefe de Mantenimiento' },
-  { label: 'Plan. Mant.', value: 'Planeador de Mantenimiento' }
+  { label: 'Jefe de Calidad', value: 'Jefe de Calidad' },
+  { label: 'Jefe de Compras y Almacén', value: 'Jefe de Compras y Almacén' },
+  { label: 'Jefe de Despachos', value: 'Jefe de Despachos' },
+  { label: 'Jefe de Mantenimiento', value: 'Jefe de Mantenimiento' },
+  { label: 'Planeador de Mantenimiento', value: 'Planeador de Mantenimiento' }
 ];
 
 interface CollaboratorFormProps {
@@ -56,7 +55,6 @@ const CollaboratorForm: React.FC<CollaboratorFormProps> = ({ initialData, onSubm
             value={formData.firstName}
             onChange={e => setFormData({...formData, firstName: e.target.value})}
             className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan" 
-            placeholder="Ej: Ana"
           />
         </div>
         <div>
@@ -67,7 +65,6 @@ const CollaboratorForm: React.FC<CollaboratorFormProps> = ({ initialData, onSubm
             value={formData.lastName}
             onChange={e => setFormData({...formData, lastName: e.target.value})}
             className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan" 
-            placeholder="Ej: Silva"
           />
         </div>
       </div>
@@ -81,7 +78,6 @@ const CollaboratorForm: React.FC<CollaboratorFormProps> = ({ initialData, onSubm
             value={formData.email}
             onChange={e => setFormData({...formData, email: e.target.value})}
             className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan" 
-            placeholder="ana.silva@empresa.com"
           />
         </div>
         <div>
@@ -122,7 +118,6 @@ const CollaboratorForm: React.FC<CollaboratorFormProps> = ({ initialData, onSubm
             value={formData.area}
             onChange={e => setFormData({...formData, area: e.target.value})}
             className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan" 
-            placeholder="Ej: Finanzas"
           />
         </div>
       </div>

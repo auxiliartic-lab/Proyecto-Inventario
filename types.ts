@@ -1,4 +1,3 @@
-
 export enum UserRole {
   ADMIN = 'Administrador',
   TECHNICIAN = 'Técnico',
@@ -17,7 +16,7 @@ export type MaintenanceSeverity = 'Moderate' | 'Severe' | 'TotalLoss';
 export interface Company {
   id: number;
   name: string;
-  color: string; // Tailwind class name (e.g., 'bg-brand-blue-dark')
+  color: string;
   logo: string;
 }
 
@@ -69,6 +68,7 @@ export interface SoftwareLicense {
   startDate: string;
   expirationDate: string;
   type: string;
+  assignedTo?: number; // Nuevo campo para asignación
 }
 
 export interface MaintenanceRecord {
@@ -83,7 +83,7 @@ export interface MaintenanceRecord {
   technician?: string;
   resolutionDetails?: string;
   resolutionDate?: string;
-  deliveryStatus?: 'Pending' | 'Delivered'; // Nuevo campo
+  deliveryStatus?: 'Pending' | 'Delivered';
 }
 
 export interface Credential {
@@ -93,4 +93,14 @@ export interface Credential {
   username: string;
   password?: string;
   description: string;
+  assignedTo?: number; // Nuevo campo para asignación
+}
+
+// Fix: Add explicit JSX.IntrinsicElements definition to suppress TS errors about HTML tags
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      [elemName: string]: any;
+    }
+  }
 }
