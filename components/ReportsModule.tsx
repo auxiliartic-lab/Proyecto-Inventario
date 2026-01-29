@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { Company, Equipment, MaintenanceRecord, SoftwareLicense, Credential } from '../types';
 import { useInventory } from '../context/InventoryContext';
@@ -196,15 +197,32 @@ const ReportsModule: React.FC<ReportsModuleProps> = ({ company }) => {
       const today = new Date();
       const exp = new Date(item.expirationDate);
       const status = exp < today ? 'VENCIDA' : 'Activa';
-      const assignedUser = item.assignedTo ? data.collaborators.find(c => c.id === item.assignedTo) : null;
-      const userName = assignedUser ? `${assignedUser.firstName} ${assignedUser.lastName}` : 'Sin Asignar';
+      
+      // Manejar múltiples asignaciones
+      let assignedToText = 'Sin Asignar';
+      
+      if (item.assignedTo && item.assignedTo.length > 0) {
+        const names = item.assignedTo.map(id => {
+          const user = data.collaborators.find(c => c.id === id);
+          return user ? `${user.firstName} ${user.lastName}` : '';
+        }).filter(Boolean);
+        assignedToText = names.join(', ');
+      } else if (item.assignedToEquipment && item.assignedToEquipment.length > 0) {
+        const names = item.assignedToEquipment.map(id => {
+          const eq = data.equipment.find(e => e.id === id);
+          return eq ? `${eq.brand} ${eq.model} (${eq.serialNumber})` : '';
+        }).filter(Boolean);
+        assignedToText = names.join(', ');
+      }
       
       return {
         'ID': item.id,
         'Software': item.name,
         'Proveedor': item.vendor,
         'Tipo': item.type,
-        'Asignado A': userName,
+        'Asignado A': assignedToText,
+        'Cupos Totales': item.totalSlots || 1,
+        'Cupos Usados': (item.assignedTo?.length || 0) + (item.assignedToEquipment?.length || 0),
         'Clave / Serial': item.key,
         'Inicio Contrato': item.startDate,
         'Vencimiento': item.expirationDate,

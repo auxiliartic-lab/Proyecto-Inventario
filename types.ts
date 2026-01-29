@@ -1,3 +1,4 @@
+
 import 'react';
 
 export enum UserRole {
@@ -61,6 +62,24 @@ export interface Equipment {
   peripheralType?: string; 
 }
 
+// NUEVA INTERFAZ PARA HISTORIAL
+export interface EquipmentHistory {
+  id: number;
+  equipmentId: number;
+  date: string; // ISO String
+  actionType: 'CREATION' | 'ASSIGNMENT' | 'UNASSIGNMENT' | 'STATUS_CHANGE' | 'MAINTENANCE' | 'UPDATE';
+  description: string;
+  user?: string; // Quién realizó la acción (simulado como 'Admin')
+}
+
+// NUEVA INTERFAZ PARA ADJUNTOS
+export interface Attachment {
+  id: string;
+  name: string;
+  type: string; // mime type
+  data: string; // Base64 string
+}
+
 export interface SoftwareLicense {
   id: number;
   companyId: number;
@@ -70,7 +89,9 @@ export interface SoftwareLicense {
   startDate: string;
   expirationDate: string;
   type: string;
-  assignedTo?: number; // Nuevo campo para asignación
+  totalSlots: number; // Nuevo: Capacidad total de instalaciones
+  assignedTo: number[]; // Nuevo: Array de IDs de Colaboradores
+  assignedToEquipment: number[]; // Nuevo: Array de IDs de Equipos
 }
 
 export interface MaintenanceRecord {
@@ -86,6 +107,7 @@ export interface MaintenanceRecord {
   resolutionDetails?: string;
   resolutionDate?: string;
   deliveryStatus?: 'Pending' | 'Delivered';
+  attachments?: Attachment[]; // Nuevo campo para evidencias
 }
 
 export interface Credential {
@@ -95,7 +117,8 @@ export interface Credential {
   username: string;
   password?: string;
   description: string;
-  assignedTo?: number; // Nuevo campo para asignación
+  assignedTo?: number; // Asignación a Colaborador
+  assignedToEquipment?: number; // Nueva: Asignación a Equipo
 }
 
 // Fix: Add explicit JSX.IntrinsicElements definition to suppress TS errors about HTML tags

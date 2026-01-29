@@ -1,157 +1,102 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Company, Collaborator, Equipment, SoftwareLicense, Credential } from '../types';
+
+import React, { useState, useEffect, useRef } from 'react';
+import { Company, Collaborator, Equipment, EquipmentStatus } from '../types';
 import { useInventory } from '../context/InventoryContext';
+import CollaboratorForm from './forms/CollaboratorForm';
+import { generateHandoverPDF } from '../utils/pdfGenerator';
 
 interface CollaboratorListProps {
   company: Company;
   onNavigate: (tab: string) => void;
 }
 
-// AVATARES LOCALES (SVG Base64) - Corregidos para asegurar visualización
-const AVATAR_MALE = "data:image/svg+xml;base64,PHN2ZyB2aWV3Qm94PSIwIDAgMTAwIDEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI0UwRjJGRSIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iNDAiIHI9IjE1IiBmaWxsPSIjMDI4NEM3Ii8+PHBhdGggZD0iTTI1IDg1IFEyNSA2MCA1MCA2MCBRNzUgNjAgNzUgODUiIGZpbGw9IiMwMjg0QzciLz48L3N2Zz4=";
-const AVATAR_FEMALE = "data:image/svg+xml;base64,PHN2ZyB2aWV3Qm94PSIwIDAgMTAwIDEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI0ZDRTdGMyIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iNDAiIHI9IjE1IiBmaWxsPSIjREIyNzc3Ii8+PHBhdGggZD0iTTI1IDg1IFEyNSA2MCA1MCA2MCBRNzUgNjAgNzUgODUiIGZpbGw9IiNEQjI3NzciLz48L3N2Zz4=";
-
-// Lista de cargos ordenada alfabéticamente con Nombres Completos
-const JOB_TITLES = [
-  { label: 'Analista Contable', value: 'Analista Contable' },
-  { label: 'Asistente Ejecutiva', value: 'Asistente Ejecutiva' },
-  { label: 'Auxiliar Administrativo', value: 'Auxiliar Administrativo' },
-  { label: 'Coordinador de Compras y Almacén', value: 'Coordinador de Compras y Almacén' },
-  { label: 'Coordinador de Seguridad e Higiene y Ambiental', value: 'Coordinador de Seguridad e Higiene y Ambiental' },
-  { label: 'Gerente Desarrollo de Nuevos Negocios', value: 'Gerente Desarrollo de Nuevos Negocios' },
-  { label: 'Gerente General de Recursos Humanos', value: 'Gerente General de Recursos Humanos' },
-  { label: 'Gerente de Planta', value: 'Gerente de planta' },
-  { label: 'Instrumentista', value: 'Instrumentista' },
-  { label: 'Jefe de Calidad', value: 'Jefe de Calidad' },
-  { label: 'Jefe de Compras y Almacén', value: 'Jefe de Compras y Almacén' },
-  { label: 'Jefe de Despachos', value: 'Jefe de Despachos' },
-  { label: 'Jefe de Mantenimiento', value: 'Jefe de Mantenimiento' },
-  { label: 'Planeador de Mantenimiento', value: 'Planeador de Mantenimiento' }
-];
+// --- AVATARES CORPORATIVOS (SVG PURO) ---
+// Usamos colores de la marca (Azules y Grises) independientemente del género para uniformidad visual
+const BusinessAvatar: React.FC<{ gender: 'Male' | 'Female', className?: string }> = ({ gender, className }) => {
+  const isFemale = gender === 'Female';
+  return (
+    <svg viewBox="0 0 100 100" className={className} xmlns="http://www.w3.org/2000/svg" fill="none">
+      <circle cx="50" cy="50" r="50" fill="#f1f5f9" /> {/* Slate-100 */}
+      <path 
+        d={isFemale 
+          ? "M50 25C42 25 36 31 36 40C36 48 42 54 50 54C58 54 64 48 64 40C64 31 58 25 50 25ZM28 84C28 70 38 62 50 62C62 62 72 70 72 84"
+          : "M50 28C43 28 38 33 38 41C38 49 43 54 50 54C57 54 62 49 62 41C62 33 57 28 50 28ZM28 84C28 70 38 60 50 60C62 60 72 70 72 84"
+        }
+        fill="#334155" /* Slate-700 */
+        opacity="0.8"
+      />
+      <path 
+        d={isFemale 
+            ? "M28 84H72C72 73 62 68 50 68C38 68 28 73 28 84Z"
+            : "M28 84H72C72 72 62 66 50 66C38 66 28 72 28 84Z"
+        } 
+        fill="#0072BC" /* Brand Blue Dark */
+        opacity="0.6" 
+      />
+    </svg>
+  );
+};
 
 const CollaboratorList: React.FC<CollaboratorListProps> = ({ company, onNavigate }) => {
-  const { data, addCollaborator, updateCollaborator, deleteCollaborator, toggleCollaboratorStatus } = useInventory();
+  const { data, addCollaborator, updateCollaborator, deleteCollaborator, toggleCollaboratorStatus, setRedirectTarget } = useInventory();
   
-  // Estados para modales y menús
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [viewModalOpen, setViewModalOpen] = useState(false);
-  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState<{isOpen: boolean, id: number | null}>({ isOpen: false, id: null });
-  
-  // Estado para Pestañas del Perfil (Equipos, Licencias, Credenciales)
-  const [profileTab, setProfileTab] = useState<'equipment' | 'licenses' | 'credentials'>('equipment');
-
-  // Estados de Filtro y Búsqueda
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
-
-  // Estado para datos
+  // States
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [selectedCollaborator, setSelectedCollaborator] = useState<Collaborator | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState<{isOpen: boolean, id: number | null}>({ isOpen: false, id: null });
+  const [selectedCollab, setSelectedCollab] = useState<Collaborator | null>(null);
+  const [activeMenu, setActiveMenu] = useState<number | null>(null);
   
-  const collaborators = data.collaborators.filter(c => c.companyId === company.id);
+  // Estado para Tabs del Modal
+  const [detailTab, setDetailTab] = useState<'equipment' | 'licenses' | 'credentials'>('equipment');
 
-  // Lógica de Filtrado
-  const filteredCollaborators = collaborators.filter(c => {
-    // 1. Filtro por Estado
-    if (statusFilter === 'active' && !c.isActive) return false;
-    if (statusFilter === 'inactive' && c.isActive) return false;
-
-    // 2. Filtro por Búsqueda (Nombre, Cargo, Área, Email)
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      const fullName = `${c.firstName} ${c.lastName}`.toLowerCase();
-      return (
-        fullName.includes(term) ||
-        c.cargo.toLowerCase().includes(term) ||
-        c.area.toLowerCase().includes(term) ||
-        c.email.toLowerCase().includes(term)
-      );
-    }
-
-    return true;
-  });
-
-  // Referencia para cerrar menús al hacer clic fuera
+  // Close menu on click outside
   const menuRef = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setOpenMenuId(null);
+        setActiveMenu(null);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const initialFormData: Partial<Collaborator> = {
-    firstName: '',
-    lastName: '',
-    email: '',
-    cargo: '',
-    area: '',
-    sex: 'Male',
-    isActive: true
-  };
+  const collaborators = data.collaborators.filter(c => c.companyId === company.id);
 
-  const [formData, setFormData] = useState<Partial<Collaborator>>(initialFormData);
+  const filteredCollaborators = collaborators.filter(c => 
+    c.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    c.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    c.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    c.cargo.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
-  // Helpers para obtener asignaciones
-  const getAssignedAssets = (collaboratorId: number) => {
-    return data.equipment.filter(e => e.assignedTo === collaboratorId);
-  };
-
-  const getAssignedLicenses = (collaboratorId: number) => {
-    return data.licenses.filter(l => l.assignedTo === collaboratorId);
-  };
-
-  const getAssignedCredentials = (collaboratorId: number) => {
-    return (data.credentials || []).filter(c => c.assignedTo === collaboratorId);
-  };
-
-  // Helper: Icono por tipo
-  const getAssetIcon = (type: string) => {
-     switch(type) {
-        case 'Laptop': return 'fa-laptop';
-        case 'Desktop': return 'fa-desktop';
-        case 'Smartphone': return 'fa-mobile-screen';
-        case 'Tablet': return 'fa-tablet-screen-button';
-        case 'Periférico': return 'fa-keyboard';
-        default: return 'fa-box';
-     }
-  };
-
-  // Manejadores de Acción
-  const handleOpenCreate = () => {
+  const handleCreate = () => {
     setEditingId(null);
-    setFormData(initialFormData);
-    setIsModalOpen(true);
+    setSelectedCollab(null);
+    setIsFormOpen(true);
+    setActiveMenu(null);
   };
 
   const handleEdit = (collab: Collaborator) => {
     setEditingId(collab.id);
-    setFormData({ ...collab });
-    setIsModalOpen(true);
-    setOpenMenuId(null);
+    setSelectedCollab(collab);
+    setIsFormOpen(true);
+    setActiveMenu(null);
   };
 
-  const handleViewDetails = (collab: Collaborator) => {
-    setSelectedCollaborator(collab);
-    setProfileTab('equipment'); // Resetear tab al abrir
-    setViewModalOpen(true);
-    setOpenMenuId(null);
+  const handleViewProfile = (collab: Collaborator) => {
+    setSelectedCollab(collab);
+    setDetailTab('equipment'); 
+    setIsDetailOpen(true);
+    setActiveMenu(null);
   };
 
-  const handleToggleStatus = (id: number) => {
-    toggleCollaboratorStatus(id);
-    setOpenMenuId(null);
-  };
-
-  const requestDelete = (id: number, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const requestDelete = (id: number) => {
     setDeleteConfirm({ isOpen: true, id });
-    setOpenMenuId(null);
+    setActiveMenu(null);
   };
 
   const confirmDelete = () => {
@@ -161,555 +106,395 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company, onNavigate
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (editingId) {
-      // Actualizar
-      updateCollaborator({
-        ...formData as Collaborator,
-        id: editingId,
-        companyId: company.id
-      });
+  const handleSubmit = (formData: Partial<Collaborator>) => {
+    if (editingId && selectedCollab) {
+        updateCollaborator({ ...selectedCollab, ...formData } as Collaborator);
     } else {
-      // Crear
-      addCollaborator({
-        ...formData as Omit<Collaborator, 'id'>,
-        companyId: company.id,
-        siteId: 1
-      });
+        addCollaborator({ ...formData, companyId: company.id, siteId: 1 } as Omit<Collaborator, 'id'>);
     }
-    setIsModalOpen(false);
-    setFormData(initialFormData);
+    setIsFormOpen(false);
     setEditingId(null);
+    setSelectedCollab(null);
+  };
+
+  const handleLocateItem = (type: 'equipment' | 'license' | 'credential', id: number) => {
+    // 1. Establecer el objetivo de redirección en el contexto
+    setRedirectTarget({ type, id });
+    // 2. Navegar al módulo correspondiente
+    const targetTab = type === 'equipment' ? 'equipment' : type === 'license' ? 'licenses' : 'credentials';
+    onNavigate(targetTab);
+  };
+
+  // Helpers de conteo
+  const getAssignedEquipment = (collabId: number) => data.equipment.filter(e => e.assignedTo === collabId);
+  const getAssignedLicenses = (collabId: number) => data.licenses.filter(l => (l.assignedTo || []).includes(collabId));
+  const getAssignedCredentials = (collabId: number) => (data.credentials || []).filter(c => c.assignedTo === collabId);
+
+  // Iconos por tipo de equipo
+  const getIconForType = (type: string) => {
+    switch (type) {
+      case 'Laptop': return 'fa-laptop';
+      case 'Desktop': return 'fa-desktop';
+      case 'Servidor': return 'fa-server';
+      case 'Tablet': return 'fa-tablet-screen-button';
+      case 'Smartphone': return 'fa-mobile-screen-button';
+      case 'Periférico': return 'fa-keyboard';
+      default: return 'fa-box';
+    }
   };
 
   return (
     <div className="animate-in fade-in duration-500 pb-20">
-       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+      
+      {/* HEADER */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Gestión de Personal</h1>
-          <p className="text-gray-500">Administra los colaboradores responsables de activos en {company.name}</p>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-bold text-gray-900">Colaboradores</h1>
+            <span className="bg-brand-blue-cyan/10 text-brand-blue-cyan px-3 py-1 rounded-full text-xs font-bold border border-brand-blue-cyan/20 whitespace-nowrap">
+                {collaborators.length} Registrados
+            </span>
+          </div>
+          <p className="text-gray-500">Gestión de asignaciones y perfiles.</p>
         </div>
         
-        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-          {/* BARRA DE BÚSQUEDA */}
-          <div className="relative group w-full sm:w-64">
+        <div className="flex flex-row gap-3 w-full md:w-auto">
+          <div className="relative group flex-1 sm:w-64">
              <i className="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-brand-blue-cyan transition-colors"></i>
              <input 
                type="text" 
-               placeholder="Buscar por nombre, cargo..." 
+               placeholder="Buscar persona..." 
                value={searchTerm}
                onChange={(e) => setSearchTerm(e.target.value)}
-               className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan transition-all text-sm font-medium"
+               className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan transition-all text-sm font-medium h-[42px]"
              />
           </div>
-
+          
           <button 
-            type="button"
-            onClick={handleOpenCreate}
-            className="w-full md:w-auto bg-brand-blue-cyan text-white px-5 py-2.5 rounded-xl font-bold hover:bg-brand-blue-dark transition-all shadow-lg shadow-brand-blue-cyan/10 flex items-center justify-center gap-2 shrink-0"
+            onClick={handleCreate}
+            className="bg-brand-blue-cyan text-white px-4 py-2.5 rounded-xl font-bold hover:bg-brand-blue-dark transition-all shadow-lg shadow-brand-blue-cyan/10 flex items-center justify-center gap-2 shrink-0 w-auto active:scale-95 touch-manipulation h-[42px]"
           >
-            <i className="fa-solid fa-user-plus"></i>
-            Añadir
+            <i className="fa-solid fa-plus"></i>
+            <span className="hidden sm:inline">Nuevo</span>
           </button>
         </div>
       </div>
 
-      {/* FILTROS TABS */}
-      <div className="flex gap-2 overflow-x-auto pb-4 mb-2 custom-scrollbar">
-        <button
-          onClick={() => setStatusFilter('all')}
-          className={`px-4 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-all border ${
-            statusFilter === 'all' 
-              ? 'bg-gray-900 text-white border-gray-900 shadow-md' 
-              : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
-          }`}
-        >
-          Todos
-        </button>
-        <button
-          onClick={() => setStatusFilter('active')}
-          className={`px-4 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-all border ${
-            statusFilter === 'active' 
-              ? 'bg-brand-green-dark text-white border-brand-green-dark shadow-md' 
-              : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
-          }`}
-        >
-          Activos
-        </button>
-        <button
-          onClick={() => setStatusFilter('inactive')}
-          className={`px-4 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-all border ${
-            statusFilter === 'inactive' 
-              ? 'bg-gray-400 text-white border-gray-400 shadow-md' 
-              : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
-          }`}
-        >
-          Inactivos
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {filteredCollaborators.map((c) => {
-          const assignedAssets = getAssignedAssets(c.id);
-          const assetCount = assignedAssets.length;
-
-          return (
-            <div key={c.id} className={`bg-white rounded-2xl border ${c.isActive ? 'border-gray-100 shadow-sm hover:shadow-md' : 'border-gray-200 bg-gray-50/50 opacity-75'} transition-all group overflow-visible relative flex flex-col`}>
-               
-               <div className="p-6 flex gap-5 items-start">
-                  <div className="relative shrink-0">
-                      <img 
-                        src={c.sex === 'Female' ? AVATAR_FEMALE : AVATAR_MALE} 
-                        className={`w-16 h-16 rounded-full object-cover ring-4 bg-gray-50 ${c.isActive ? 'ring-brand-blue-cyan/10' : 'ring-gray-200 grayscale'}`} 
-                        alt="collaborator" 
-                      />
-                      <div className={`absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-white ${c.isActive ? 'bg-brand-green-dark' : 'bg-gray-400'}`}></div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-start">
-                        <h3 className="font-bold text-gray-900 text-lg truncate pr-6">{c.firstName} {c.lastName}</h3>
+      {/* LISTA CORPORATIVA SIMPLIFICADA (SIN STATS) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+        {filteredCollaborators.map(collab => {
+            return (
+                <div key={collab.id} className={`group bg-white rounded-xl border-l-4 shadow-sm hover:shadow-md transition-all relative flex items-center p-5 gap-4 ${collab.isActive ? 'border-l-brand-blue-cyan border-y border-r border-gray-100' : 'border-l-gray-300 border-y border-r border-gray-100 opacity-70'}`}>
+                    
+                    {/* Actions Menu */}
+                    <div className="absolute top-2 right-2 z-10">
+                        <button 
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveMenu(activeMenu === collab.id ? null : collab.id);
+                            }}
+                            className="w-8 h-8 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-all"
+                        >
+                            <i className="fa-solid fa-ellipsis"></i>
+                        </button>
                         
-                        {/* Menú Tres Puntos */}
-                        <div className="relative -mt-1 -mr-2">
-                          <button 
-                            type="button"
-                            onClick={() => setOpenMenuId(openMenuId === c.id ? null : c.id)}
-                            className="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-brand-blue-cyan hover:bg-brand-blue-cyan/10 transition-colors"
-                          >
-                              <i className="fa-solid fa-ellipsis-vertical"></i>
-                          </button>
-                          {openMenuId === c.id && (
-                            <div 
-                              ref={menuRef}
-                              className="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl shadow-xl z-20 border border-gray-100 animate-in fade-in zoom-in-95 duration-100 overflow-hidden"
-                            >
-                              <div className="py-1">
-                                <button onClick={() => handleViewDetails(c)} className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-brand-blue-cyan font-medium flex items-center gap-2"><i className="fa-solid fa-eye text-xs w-5 text-center"></i> Ver Perfil</button>
-                                <button onClick={() => handleEdit(c)} className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-brand-yellow font-medium flex items-center gap-2"><i className="fa-solid fa-pen text-xs w-5 text-center"></i> Editar Datos</button>
-                                <button onClick={() => handleToggleStatus(c.id)} className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 font-medium flex items-center gap-2"><i className={`fa-solid ${c.isActive ? 'fa-toggle-off' : 'fa-toggle-on'} text-xs w-5 text-center`}></i> {c.isActive ? 'Desactivar' : 'Activar'}</button>
-                                <div className="border-t border-gray-100 my-1"></div>
-                                <button onClick={(e) => requestDelete(c.id, e)} className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 font-medium flex items-center gap-2"><i className="fa-solid fa-trash-can text-xs w-5 text-center"></i> Eliminar</button>
-                              </div>
+                        {/* Dropdown */}
+                        {activeMenu === collab.id && (
+                            <div ref={menuRef} className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 z-30 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                                <button onClick={() => handleViewProfile(collab)} className="w-full text-left px-4 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50 flex gap-2"><i className="fa-solid fa-eye w-5 text-center"></i> Ver Perfil</button>
+                                <button onClick={() => handleEdit(collab)} className="w-full text-left px-4 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50 flex gap-2 border-t border-gray-50"><i className="fa-solid fa-pen w-5 text-center"></i> Editar</button>
+                                <button onClick={() => { toggleCollaboratorStatus(collab.id); setActiveMenu(null); }} className="w-full text-left px-4 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50 flex gap-2 border-t border-gray-50"><i className={`fa-solid ${collab.isActive ? 'fa-ban text-red-400' : 'fa-check text-green-500'} w-5 text-center`}></i> {collab.isActive ? 'Desactivar' : 'Activar'}</button>
+                                <button onClick={() => requestDelete(collab.id)} className="w-full text-left px-4 py-3 text-sm font-bold text-red-500 hover:bg-red-50 flex gap-2 border-t border-gray-50"><i className="fa-solid fa-trash-can w-5 text-center"></i> Eliminar</button>
                             </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Cargo con letra más pequeña para nombres largos */}
-                      <p className={`text-xs font-bold leading-tight ${c.isActive ? 'text-brand-blue-dark' : 'text-gray-500'}`}>{c.cargo}</p>
-                      <p className="text-gray-400 text-xs mb-3 mt-1">{c.area}</p>
-                      
-                      <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded-lg w-fit max-w-full">
-                          <i className="fa-solid fa-envelope text-gray-400"></i>
-                          <span className="truncate">{c.email}</span>
-                      </div>
-                  </div>
-               </div>
-
-               {/* Resumen de Activos (Footer) */}
-               <div className="mt-auto px-6 py-4 bg-gray-50/50 border-t border-gray-50 rounded-b-2xl">
-                  <div className="flex items-center justify-between">
-                     <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Custodia</span>
-                     <span className={`text-xs font-bold ${assetCount > 0 ? 'text-brand-blue-cyan' : 'text-gray-400'}`}>
-                        {assetCount} {assetCount === 1 ? 'Activo' : 'Activos'}
-                     </span>
-                  </div>
-                  
-                  {assetCount > 0 ? (
-                    <div className="flex gap-2 mt-2 overflow-x-auto pb-1 no-scrollbar">
-                       {/* Mostrar iconos únicos de tipos de equipos que tiene */}
-                       {Array.from(new Set(assignedAssets.map(a => a.type))).slice(0, 5).map((type: string) => (
-                          <div key={type} className="w-8 h-8 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-500 shadow-sm shrink-0" title={type}>
-                             <i className={`fa-solid ${getAssetIcon(type)} text-xs`}></i>
-                          </div>
-                       ))}
-                       {Array.from(new Set(assignedAssets.map(a => a.type))).length > 5 && (
-                          <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-xs text-gray-500 font-bold shrink-0">
-                             +
-                          </div>
-                       )}
+                        )}
                     </div>
-                  ) : (
-                    <p className="text-xs text-gray-400 mt-2 italic">Sin equipos asignados</p>
-                  )}
-               </div>
-            </div>
-          );
-        })}
 
-        {filteredCollaborators.length === 0 && (
-          <div className="col-span-full py-16 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-400">
-             <i className="fa-solid fa-magnifying-glass text-4xl mb-4 text-gray-300"></i>
-             <p className="font-bold">
-               {searchTerm ? `No se encontraron resultados para "${searchTerm}"` : 'No hay colaboradores en esta categoría'}
-             </p>
-             {searchTerm && (
-                <button onClick={() => setSearchTerm('')} className="mt-2 text-sm text-brand-blue-cyan font-bold hover:underline">
-                  Limpiar búsqueda
-                </button>
-             )}
-          </div>
-        )}
+                    <div className="shrink-0 relative">
+                        <BusinessAvatar gender={collab.sex} className="w-14 h-14 rounded-full border border-gray-100 bg-gray-50" />
+                        <span className={`absolute bottom-0 right-0 w-3 h-3 border-2 border-white rounded-full ${collab.isActive ? 'bg-green-500' : 'bg-gray-400'}`}></span>
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                        <h3 className="font-bold text-gray-900 text-base leading-tight truncate">{collab.firstName} {collab.lastName}</h3>
+                        <p className="text-xs font-medium text-brand-blue-dark truncate mb-0.5">{collab.cargo}</p>
+                        <div className="flex items-center gap-3 text-[10px] text-gray-500">
+                             <span className="truncate"><i className="fa-solid fa-building mr-1 text-gray-300"></i>{collab.area}</span>
+                        </div>
+                    </div>
+                </div>
+            );
+        })}
       </div>
 
-      {/* MODAL CREAR / EDITAR */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl animate-in zoom-in-95 duration-200">
-            <div className="p-8">
-              {/* ... formulario ... */}
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">
-                  {editingId ? 'Editar Colaborador' : 'Nuevo Colaborador'}
-                </h2>
-                <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600">
-                  <i className="fa-solid fa-times text-xl"></i>
-                </button>
-              </div>
-              
-              <form className="space-y-4" onSubmit={handleSubmit}>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Nombre</label>
-                    <input 
-                      required
-                      type="text" 
-                      value={formData.firstName}
-                      onChange={e => setFormData({...formData, firstName: e.target.value})}
-                      className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan" 
-                    />
+      {/* MODAL PERFIL ORGANIZADO */}
+      {isDetailOpen && selectedCollab && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm p-4 overflow-y-auto">
+              <div className="bg-white rounded-xl w-full max-w-4xl shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh] overflow-hidden">
+                  
+                  {/* Header Profile */}
+                  <div className="bg-gray-900 p-6 text-white shrink-0 flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                          <BusinessAvatar gender={selectedCollab.sex} className="w-16 h-16 rounded-full bg-white border-2 border-gray-700" />
+                          <div>
+                              <h2 className="text-xl font-bold">{selectedCollab.firstName} {selectedCollab.lastName}</h2>
+                              <p className="text-brand-blue-cyan font-medium text-sm">{selectedCollab.cargo}</p>
+                              <div className="flex gap-4 mt-1 text-xs text-gray-400">
+                                  <span><i className="fa-solid fa-building mr-1"></i> {selectedCollab.area}</span>
+                                  <span><i className="fa-solid fa-envelope mr-1"></i> {selectedCollab.email}</span>
+                              </div>
+                          </div>
+                      </div>
+                      <button onClick={() => setIsDetailOpen(false)} className="w-8 h-8 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-full transition-all">
+                          <i className="fa-solid fa-times"></i>
+                      </button>
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Apellido</label>
-                    <input 
-                      required
-                      type="text" 
-                      value={formData.lastName}
-                      onChange={e => setFormData({...formData, lastName: e.target.value})}
-                      className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan" 
-                    />
-                  </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Correo Electrónico</label>
-                    <input 
-                      required
-                      type="email" 
-                      value={formData.email}
-                      onChange={e => setFormData({...formData, email: e.target.value})}
-                      className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan" 
-                    />
+                  {/* TABS NAVIGATION */}
+                  <div className="flex border-b border-gray-200 bg-gray-50 px-6 overflow-x-auto">
+                      <button 
+                        onClick={() => setDetailTab('equipment')}
+                        className={`px-4 py-3 text-sm font-bold border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${detailTab === 'equipment' ? 'border-brand-blue-cyan text-brand-blue-dark bg-white' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                      >
+                          <i className="fa-solid fa-laptop"></i> Equipos
+                      </button>
+                      <button 
+                        onClick={() => setDetailTab('licenses')}
+                        className={`px-4 py-3 text-sm font-bold border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${detailTab === 'licenses' ? 'border-brand-blue-cyan text-brand-blue-dark bg-white' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                      >
+                          <i className="fa-solid fa-certificate"></i> Licencias
+                      </button>
+                      <button 
+                        onClick={() => setDetailTab('credentials')}
+                        className={`px-4 py-3 text-sm font-bold border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${detailTab === 'credentials' ? 'border-brand-blue-cyan text-brand-blue-dark bg-white' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                      >
+                          <i className="fa-solid fa-key"></i> Credenciales
+                      </button>
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Sexo</label>
-                    <select
-                      value={formData.sex}
-                      onChange={e => setFormData({...formData, sex: e.target.value as 'Male' | 'Female'})}
-                      className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan appearance-none"
-                    >
-                      <option value="Male">Hombre</option>
-                      <option value="Female">Mujer</option>
-                    </select>
-                  </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Cargo</label>
-                    <select
-                      required
-                      value={formData.cargo}
-                      onChange={e => setFormData({...formData, cargo: e.target.value})}
-                      className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan appearance-none" 
-                    >
-                      <option value="">-- Seleccionar --</option>
-                      {JOB_TITLES.map((job) => (
-                        <option key={job.value} value={job.value}>
-                          {job.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Área</label>
-                    <input 
-                      required
-                      type="text" 
-                      value={formData.area}
-                      onChange={e => setFormData({...formData, area: e.target.value})}
-                      className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan" 
-                    />
-                  </div>
-                </div>
+                  {/* Body Content */}
+                  <div className="p-6 overflow-y-auto custom-scrollbar flex-1 bg-gray-50/50">
+                      
+                      {/* --- TAB EQUIPOS --- */}
+                      {detailTab === 'equipment' && (() => {
+                          const allEquip = getAssignedEquipment(selectedCollab.id);
+                          const maintenanceEquip = allEquip.filter(e => e.status === EquipmentStatus.MAINTENANCE);
+                          const activeEquip = allEquip.filter(e => e.status !== EquipmentStatus.MAINTENANCE);
 
-                <div className="pt-6 flex gap-3">
-                  <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold rounded-xl transition-all">
-                    Cancelar
-                  </button>
-                  <button type="submit" className="flex-1 py-3 bg-brand-blue-cyan hover:bg-brand-blue-dark text-white font-bold rounded-xl shadow-lg shadow-brand-blue-cyan/20 transition-all">
-                    {editingId ? 'Guardar Cambios' : 'Crear Registro'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
+                          return (
+                            <div className="space-y-6">
+                                {/* SECCIÓN 1: EN TALLER (MANTENIMIENTO) */}
+                                {maintenanceEquip.length > 0 && (
+                                    <div>
+                                        <h3 className="text-xs font-black text-yellow-700 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                            <i className="fa-solid fa-triangle-exclamation"></i> Equipos en Reparación
+                                        </h3>
+                                        <div className="grid grid-cols-1 gap-3">
+                                            {maintenanceEquip.map(eq => (
+                                                <div key={eq.id} className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex justify-between items-center shadow-sm">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center text-yellow-600">
+                                                            <i className="fa-solid fa-screwdriver-wrench"></i>
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-bold text-gray-900 text-sm">{eq.brand} {eq.model}</p>
+                                                            <p className="text-xs text-yellow-700 font-medium">Estado: Mantenimiento Activo</p>
+                                                        </div>
+                                                    </div>
+                                                    <button 
+                                                        onClick={() => handleLocateItem('equipment', eq.id)}
+                                                        className="text-xs font-bold text-yellow-700 hover:text-yellow-900 bg-yellow-200/50 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-2"
+                                                    >
+                                                        <i className="fa-solid fa-crosshairs"></i> Localizar
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
 
-      {/* MODAL VER DETALLES (PERFIL COMPLETO) */}
-      {viewModalOpen && selectedCollaborator && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl w-full max-w-4xl shadow-2xl animate-in zoom-in-95 duration-200 relative overflow-hidden flex flex-col md:flex-row h-auto max-h-[90vh]">
-            
-            {/* COLUMNA IZQUIERDA: PERFIL */}
-            <div className="w-full md:w-1/3 bg-gray-50 p-8 border-r border-gray-100 flex flex-col items-center text-center">
-               <div className="mb-6 relative">
-                  <img 
-                    src={selectedCollaborator.sex === 'Female' ? AVATAR_FEMALE : AVATAR_MALE} 
-                    className="w-32 h-32 rounded-full border-4 border-white shadow-lg bg-white" 
-                    alt="Avatar" 
-                  />
-                  <div className={`absolute bottom-2 right-2 w-5 h-5 rounded-full border-2 border-white ${selectedCollaborator.isActive ? 'bg-brand-green-dark' : 'bg-gray-400'}`}></div>
-               </div>
-               
-               <h2 className="text-2xl font-black text-gray-900 leading-tight mb-2">
-                 {selectedCollaborator.firstName} <br/> {selectedCollaborator.lastName}
-               </h2>
-               <p className="text-brand-blue-dark font-bold text-sm mb-1">{selectedCollaborator.cargo}</p>
-               <p className="text-gray-400 text-xs uppercase tracking-widest font-bold mb-6">{selectedCollaborator.area}</p>
+                                {/* SECCIÓN 2: ACTIVOS */}
+                                <div>
+                                    <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                        <i className="fa-solid fa-check-circle text-green-500"></i> Equipos Activos
+                                    </h3>
+                                    {activeEquip.length > 0 ? (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {activeEquip.map(eq => (
+                                                <div key={eq.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between hover:border-brand-blue-cyan transition-colors">
+                                                    <div className="flex items-start gap-3 mb-3">
+                                                        <div className="w-10 h-10 bg-gray-50 rounded-lg flex items-center justify-center text-gray-400 border border-gray-100">
+                                                            <i className={`fa-solid ${getIconForType(eq.type)}`}></i>
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-bold text-gray-800 text-sm">{eq.brand} {eq.model}</p>
+                                                            <p className="text-xs text-gray-400 font-mono">SN: {eq.serialNumber}</p>
+                                                            <span className="inline-block mt-1 px-2 py-0.5 bg-gray-100 text-gray-500 text-[10px] rounded uppercase font-bold">{eq.type}</span>
+                                                        </div>
+                                                    </div>
 
-               <div className="w-full space-y-3">
-                  <div className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm flex items-center gap-3 text-left">
-                     <div className="w-8 h-8 rounded-full bg-brand-blue-cyan/10 flex items-center justify-center text-brand-blue-cyan">
-                       <i className="fa-solid fa-envelope text-xs"></i>
-                     </div>
-                     <div className="min-w-0">
-                        <p className="text-[10px] text-gray-400 font-bold uppercase">Correo</p>
-                        <p className="text-xs font-semibold text-gray-700 truncate" title={selectedCollaborator.email}>{selectedCollaborator.email}</p>
-                     </div>
+                                                    <div className="mt-2 border-t border-gray-50 pt-3 flex items-center justify-between">
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); generateHandoverPDF(company, eq, selectedCollab); }}
+                                                            className="flex-1 mr-2 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg text-[10px] font-bold transition-colors flex items-center justify-center gap-2"
+                                                        >
+                                                            <i className="fa-solid fa-file-pdf text-red-500"></i> PDF
+                                                        </button>
+                                                        
+                                                        {/* BOTÓN REDIRECCIÓN */}
+                                                        <button 
+                                                            onClick={() => handleLocateItem('equipment', eq.id)}
+                                                            className="py-2 px-3 bg-brand-blue-cyan/10 text-brand-blue-cyan hover:bg-brand-blue-cyan hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
+                                                        >
+                                                            <i className="fa-solid fa-crosshairs"></i> Localizar
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="text-sm text-gray-400 italic bg-gray-50 p-4 rounded-lg text-center border border-dashed border-gray-200">
+                                            No tiene equipos activos asignados.
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                          );
+                      })()}
+
+                      {/* --- TAB LICENCIAS --- */}
+                      {detailTab === 'licenses' && (
+                          <div>
+                              <div className="flex justify-between items-center mb-4">
+                                  <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest">
+                                      Software Asignado
+                                  </h3>
+                                  <span className="bg-gray-200 text-gray-600 px-2 py-0.5 rounded text-xs font-bold">{getAssignedLicenses(selectedCollab.id).length}</span>
+                              </div>
+                              <div className="space-y-3">
+                                  {getAssignedLicenses(selectedCollab.id).map(lic => (
+                                      <div key={lic.id} className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                          <div className="flex items-center gap-3">
+                                              <div className="w-10 h-10 rounded-lg bg-orange-50 text-orange-500 flex items-center justify-center border border-orange-100">
+                                                  <i className="fa-solid fa-file-signature"></i>
+                                              </div>
+                                              <div>
+                                                  <p className="font-bold text-gray-900 text-sm">{lic.name}</p>
+                                                  <p className="text-xs text-gray-500">{lic.vendor}</p>
+                                              </div>
+                                          </div>
+                                          <div className="flex items-center justify-between md:justify-end w-full md:w-auto gap-4">
+                                              <div className="text-right">
+                                                  <span className="text-[10px] font-bold text-gray-400 uppercase block">Vence</span>
+                                                  <span className="text-xs font-bold text-gray-700">{new Date(lic.expirationDate).toLocaleDateString()}</span>
+                                              </div>
+                                              
+                                              {/* BOTÓN REDIRECCIÓN */}
+                                              <button 
+                                                  onClick={() => handleLocateItem('license', lic.id)}
+                                                  className="py-1.5 px-3 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
+                                              >
+                                                  <i className="fa-solid fa-crosshairs"></i> Localizar
+                                              </button>
+                                          </div>
+                                      </div>
+                                  ))}
+                                  {getAssignedLicenses(selectedCollab.id).length === 0 && (
+                                      <div className="text-center py-8 text-gray-400 bg-gray-50 rounded-lg border border-dashed">
+                                          Sin licencias asignadas.
+                                      </div>
+                                  )}
+                              </div>
+                          </div>
+                      )}
+
+                      {/* --- TAB CREDENCIALES --- */}
+                      {detailTab === 'credentials' && (
+                          <div>
+                              <div className="flex justify-between items-center mb-4">
+                                  <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest">
+                                      Accesos y Cuentas
+                                  </h3>
+                                  <span className="bg-gray-200 text-gray-600 px-2 py-0.5 rounded text-xs font-bold">{getAssignedCredentials(selectedCollab.id).length}</span>
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  {getAssignedCredentials(selectedCollab.id).map(cred => (
+                                      <div key={cred.id} className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                                          <div className="flex items-start gap-3 mb-3">
+                                              <i className="fa-solid fa-key text-gray-300 mt-1"></i>
+                                              <div>
+                                                  <p className="font-bold text-gray-900 text-sm">{cred.service}</p>
+                                                  <p className="text-xs text-gray-500 italic">{cred.description || 'Sin descripción'}</p>
+                                              </div>
+                                          </div>
+                                          <div className="flex items-center justify-between pt-2 border-t border-gray-50 mt-2">
+                                              <span className="text-xs font-mono text-gray-600">{cred.username}</span>
+                                              
+                                              {/* BOTÓN REDIRECCIÓN */}
+                                              <button 
+                                                  onClick={() => handleLocateItem('credential', cred.id)}
+                                                  className="py-1 px-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-md text-[10px] font-bold transition-all flex items-center gap-1"
+                                              >
+                                                  <i className="fa-solid fa-crosshairs"></i> Ir
+                                              </button>
+                                          </div>
+                                      </div>
+                                  ))}
+                              </div>
+                              {getAssignedCredentials(selectedCollab.id).length === 0 && (
+                                  <div className="text-center py-8 text-gray-400 bg-gray-50 rounded-lg border border-dashed">
+                                      Sin credenciales asignadas.
+                                  </div>
+                              )}
+                          </div>
+                      )}
+
                   </div>
                   
-                  <div className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm flex items-center gap-3 text-left">
-                     <div className="w-8 h-8 rounded-full bg-brand-orange/10 flex items-center justify-center text-brand-orange">
-                       <i className="fa-solid fa-user-tag text-xs"></i>
-                     </div>
-                     <div>
-                        <p className="text-[10px] text-gray-400 font-bold uppercase">Estado</p>
-                        <p className={`text-xs font-bold ${selectedCollaborator.isActive ? 'text-brand-green-dark' : 'text-gray-500'}`}>
-                           {selectedCollaborator.isActive ? 'Empleado Activo' : 'Inactivo'}
-                        </p>
-                     </div>
+                  <div className="p-4 bg-gray-50 border-t border-gray-200 text-right">
+                      <button onClick={() => setIsDetailOpen(false)} className="px-6 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold rounded-lg transition-colors shadow-sm text-sm">
+                          Cerrar Perfil
+                      </button>
                   </div>
+              </div>
+          </div>
+      )}
+
+      {/* MODAL FORMULARIO */}
+      {isFormOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl w-full max-w-lg shadow-2xl animate-in zoom-in-95 duration-200">
+             <div className="p-8">
+               <div className="flex justify-between items-center mb-6">
+                 <h2 className="text-xl font-black text-gray-900">{editingId ? 'Editar Colaborador' : 'Nuevo Colaborador'}</h2>
+                 <button onClick={() => setIsFormOpen(false)} className="text-gray-400 hover:text-gray-600">
+                   <i className="fa-solid fa-times text-xl"></i>
+                 </button>
                </div>
-            </div>
-
-            {/* COLUMNA DERECHA: PESTAÑAS Y CONTENIDO */}
-            <div className="w-full md:w-2/3 p-8 flex flex-col">
-               <div className="flex justify-between items-center mb-4">
-                  <div>
-                    <h3 className="text-xl font-bold text-gray-900">Detalle de Asignaciones</h3>
-                    <p className="text-sm text-gray-500">Recursos asignados actualmente.</p>
-                  </div>
-                  <button onClick={() => setViewModalOpen(false)} className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors">
-                      <i className="fa-solid fa-times text-lg"></i>
-                  </button>
-               </div>
-
-               {/* TABS HEADER */}
-               <div className="flex items-center gap-2 mb-4 border-b border-gray-100 pb-1">
-                    <button 
-                        onClick={() => setProfileTab('equipment')}
-                        className={`px-4 py-2 text-sm font-bold rounded-lg transition-all ${profileTab === 'equipment' ? 'bg-brand-blue-cyan text-white shadow-md' : 'text-gray-400 hover:bg-gray-50'}`}
-                    >
-                        Equipos
-                    </button>
-                    <button 
-                        onClick={() => setProfileTab('licenses')}
-                        className={`px-4 py-2 text-sm font-bold rounded-lg transition-all ${profileTab === 'licenses' ? 'bg-brand-blue-cyan text-white shadow-md' : 'text-gray-400 hover:bg-gray-50'}`}
-                    >
-                        Licencias
-                    </button>
-                    <button 
-                        onClick={() => setProfileTab('credentials')}
-                        className={`px-4 py-2 text-sm font-bold rounded-lg transition-all ${profileTab === 'credentials' ? 'bg-brand-blue-cyan text-white shadow-md' : 'text-gray-400 hover:bg-gray-50'}`}
-                    >
-                        Credenciales
-                    </button>
-               </div>
-
-               <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
-                  {/* --- TAB EQUIPOS --- */}
-                  {profileTab === 'equipment' && (
-                    getAssignedAssets(selectedCollaborator.id).length > 0 ? (
-                        <div className="space-y-3">
-                        {getAssignedAssets(selectedCollaborator.id).map(asset => {
-                            const isMaintenance = asset.status === 'Mantenimiento';
-                            return (
-                                <div key={asset.id} className={`flex items-center gap-4 p-4 rounded-xl border ${isMaintenance ? 'border-yellow-200 bg-yellow-50/50' : 'border-gray-100 hover:border-brand-blue-cyan/30 hover:bg-brand-blue-cyan/5'} transition-all group`}>
-                                    <div className={`w-12 h-12 rounded-xl bg-white border ${isMaintenance ? 'border-yellow-100 text-yellow-600' : 'border-gray-100 text-brand-blue-cyan'} flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform`}>
-                                        <i className={`fa-solid ${getAssetIcon(asset.type)} text-xl`}></i>
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">{asset.type}</p>
-                                        <p className="font-bold text-gray-900 text-sm">{asset.brand} {asset.model}</p>
-                                        <p className="text-xs text-gray-500 font-mono mt-0.5">SN: {asset.serialNumber}</p>
-                                    </div>
-                                    <div className="text-right flex flex-col items-end gap-2">
-                                        <span className={`px-2 py-1 text-[10px] font-black uppercase rounded-lg ${isMaintenance ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>
-                                            {isMaintenance ? 'Mantenimiento' : 'Asignado'}
-                                        </span>
-                                        <button 
-                                          onClick={() => {
-                                            setViewModalOpen(false);
-                                            onNavigate('equipment');
-                                          }}
-                                          className="text-gray-400 hover:text-brand-blue-cyan transition-colors"
-                                          title="Ir al módulo de Equipos"
-                                        >
-                                          <i className="fa-solid fa-arrow-up-right-from-square"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                        </div>
-                    ) : (
-                        <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-60">
-                            <i className="fa-solid fa-laptop text-4xl mb-3"></i>
-                            <p className="font-medium text-sm">Sin equipos asignados</p>
-                        </div>
-                    )
-                  )}
-
-                  {/* --- TAB LICENCIAS --- */}
-                  {profileTab === 'licenses' && (
-                    getAssignedLicenses(selectedCollaborator.id).length > 0 ? (
-                        <div className="space-y-3">
-                        {getAssignedLicenses(selectedCollaborator.id).map(license => (
-                            <div key={license.id} className="flex items-center gap-4 p-4 rounded-xl border border-gray-100 hover:border-brand-yellow/30 hover:bg-brand-yellow/5 transition-all group">
-                                <div className="w-12 h-12 rounded-xl bg-white border border-gray-100 flex items-center justify-center text-brand-yellow shadow-sm group-hover:scale-110 transition-transform">
-                                    <i className="fa-solid fa-certificate text-xl"></i>
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">{license.vendor}</p>
-                                    <p className="font-bold text-gray-900 text-sm">{license.name}</p>
-                                    <p className="text-xs text-gray-500 mt-0.5">Expira: {license.expirationDate}</p>
-                                </div>
-                                <div className="text-right flex flex-col items-end gap-2">
-                                    <span className="px-2 py-1 bg-yellow-100 text-yellow-700 text-[10px] font-black uppercase rounded-lg">Activa</span>
-                                    <button 
-                                      onClick={() => {
-                                        setViewModalOpen(false);
-                                        onNavigate('licenses');
-                                      }}
-                                      className="text-gray-400 hover:text-brand-yellow transition-colors"
-                                      title="Ir al módulo de Licencias"
-                                    >
-                                      <i className="fa-solid fa-arrow-up-right-from-square"></i>
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                        </div>
-                    ) : (
-                        <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-60">
-                            <i className="fa-solid fa-file-signature text-4xl mb-3"></i>
-                            <p className="font-medium text-sm">Sin licencias asignadas</p>
-                        </div>
-                    )
-                  )}
-
-                  {/* --- TAB CREDENCIALES --- */}
-                  {profileTab === 'credentials' && (
-                    getAssignedCredentials(selectedCollaborator.id).length > 0 ? (
-                        <div className="space-y-3">
-                        {getAssignedCredentials(selectedCollaborator.id).map(cred => (
-                            <div key={cred.id} className="flex items-center gap-4 p-4 rounded-xl border border-gray-100 hover:border-brand-blue-dark/30 hover:bg-brand-blue-dark/5 transition-all group">
-                                <div className="w-12 h-12 rounded-xl bg-white border border-gray-100 flex items-center justify-center text-brand-blue-dark shadow-sm group-hover:scale-110 transition-transform">
-                                    <i className="fa-solid fa-key text-xl"></i>
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">Credencial</p>
-                                    <p className="font-bold text-gray-900 text-sm">{cred.service}</p>
-                                    <p className="text-xs text-gray-500 font-mono mt-0.5">User: {cred.username}</p>
-                                </div>
-                                <div className="text-right flex flex-col items-end gap-2">
-                                    <div className="w-8 h-8 flex items-center justify-center bg-gray-100 rounded-lg text-gray-400">
-                                        <i className="fa-solid fa-lock"></i>
-                                    </div>
-                                    <button 
-                                      onClick={() => {
-                                        setViewModalOpen(false);
-                                        onNavigate('credentials');
-                                      }}
-                                      className="text-gray-400 hover:text-brand-blue-dark transition-colors"
-                                      title="Ir al módulo de Credenciales"
-                                    >
-                                      <i className="fa-solid fa-arrow-up-right-from-square"></i>
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                        </div>
-                    ) : (
-                        <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-60">
-                            <i className="fa-solid fa-shield-halved text-4xl mb-3"></i>
-                            <p className="font-medium text-sm">Sin credenciales asignadas</p>
-                        </div>
-                    )
-                  )}
-               </div>
-
-               <div className="mt-4 pt-4 border-t border-gray-100 flex justify-between items-center">
-                   <p className="text-xs font-bold text-gray-400 uppercase">
-                        Total {profileTab === 'equipment' ? 'Equipos' : profileTab === 'licenses' ? 'Licencias' : 'Credenciales'}: 
-                        <span className="text-gray-900 text-sm ml-1">
-                            {profileTab === 'equipment' ? getAssignedAssets(selectedCollaborator.id).length :
-                             profileTab === 'licenses' ? getAssignedLicenses(selectedCollaborator.id).length :
-                             getAssignedCredentials(selectedCollaborator.id).length}
-                        </span>
-                   </p>
-                   <button 
-                     onClick={() => setViewModalOpen(false)}
-                     className="px-6 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold rounded-lg text-sm transition-colors"
-                   >
-                     Cerrar
-                   </button>
-               </div>
-            </div>
+               <CollaboratorForm 
+                 initialData={selectedCollab || undefined} 
+                 onSubmit={handleSubmit} 
+                 onCancel={() => setIsFormOpen(false)} 
+                 isEditing={!!editingId}
+               />
+             </div>
           </div>
         </div>
       )}
 
-      {/* --- MODAL CONFIRMACION ELIMINAR --- */}
+      {/* CONFIRMACION ELIMINAR */}
       {deleteConfirm.isOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center transform transition-all scale-100">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 text-center">
             <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500 text-2xl">
-              <i className="fa-solid fa-triangle-exclamation"></i>
+              <i className="fa-solid fa-user-xmark"></i>
             </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">¿Estás seguro?</h3>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Eliminar Colaborador</h3>
             <p className="text-sm text-gray-500 mb-6">
-              Esta acción eliminará al colaborador y desvinculará todos sus equipos asignados.
+              Se desvincularán automáticamente todos los equipos asignados a esta persona.
             </p>
             <div className="flex gap-3">
-              <button 
-                type="button"
-                onClick={() => setDeleteConfirm({ isOpen: false, id: null })}
-                className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors"
-              >
-                Cancelar
-              </button>
-              <button 
-                type="button"
-                onClick={confirmDelete}
-                className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-lg shadow-red-500/30 transition-colors"
-              >
-                Sí, Eliminar
-              </button>
+              <button onClick={() => setDeleteConfirm({ isOpen: false, id: null })} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors">Cancelar</button>
+              <button onClick={confirmDelete} className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-lg transition-colors">Eliminar</button>
             </div>
           </div>
         </div>

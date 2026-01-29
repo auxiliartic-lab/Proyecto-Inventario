@@ -1,7 +1,5 @@
 {
   "name": "Inventory",
   "description": "Sistema avanzado de gestión de infraestructura TI multisede con control de inventario detallado, especificaciones de hardware, licenciamiento y bóveda de credenciales integrada.",
-  "requestFramePermissions": [
-    "camera"
-  ]
+  "requestFramePermissions": []
 }

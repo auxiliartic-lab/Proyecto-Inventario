@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
-import { Company, SoftwareLicense } from '../types';
+
+import React, { useState, useEffect } from 'react';
+import { Company, SoftwareLicense, Collaborator, Equipment } from '../types';
 import { useInventory } from '../context/InventoryContext';
 import LicenseForm from './forms/LicenseForm';
+import { generateLicenseHandoverPDF } from '../utils/pdfGenerator';
 
 interface LicenseManagerProps {
   company: Company;
@@ -10,7 +12,7 @@ interface LicenseManagerProps {
 type LicenseStatus = 'Active' | 'Warning' | 'Critical';
 
 const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
-  const { data, addLicense, updateLicense, deleteLicense } = useInventory();
+  const { data, addLicense, updateLicense, deleteLicense, redirectTarget, setRedirectTarget } = useInventory();
   const [isModalOpen, setIsModalOpen] = useState(false);
   
   // Estado para edición
@@ -27,9 +29,30 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
   
   const licenses = data.licenses.filter(l => l.companyId === company.id);
   const collaborators = data.collaborators.filter(c => c.companyId === company.id);
+  // Filtramos equipos de la compañía actual
+  const equipmentList = data.equipment.filter(e => e.companyId === company.id);
 
   // Estado temporal para formulario
   const [formInitialData, setFormInitialData] = useState<Partial<SoftwareLicense> | undefined>(undefined);
+
+  // --- REDIRECT HANDLER ---
+  useEffect(() => {
+    if (redirectTarget && redirectTarget.type === 'license') {
+      setFilterMode('All'); // Resetear filtro
+      setTimeout(() => {
+          const element = document.getElementById(`license-${redirectTarget.id}`);
+          if (element) {
+              element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              element.classList.add('ring-4', 'ring-brand-blue-cyan', 'animate-pulse');
+              setTimeout(() => {
+                  element.classList.remove('ring-4', 'ring-brand-blue-cyan', 'animate-pulse');
+                  setRedirectTarget(null);
+              }, 3000);
+          }
+      }, 300);
+    }
+  }, [redirectTarget, setRedirectTarget]);
+
 
   // Lógica del Semáforo
   const calculateStatus = (expirationDate: string): LicenseStatus => {
@@ -84,6 +107,9 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
           key: formData.key || 'N/A',
           type: formData.type || 'Suscripción',
           startDate: formData.startDate || new Date().toISOString().split('T')[0],
+          totalSlots: formData.totalSlots || 1,
+          assignedTo: formData.assignedTo || [],
+          assignedToEquipment: formData.assignedToEquipment || []
         });
       }
       
@@ -109,6 +135,12 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
     setViewModalOpen(true);
   };
 
+  // GENERAR PDF DE LICENCIA
+  const handleGeneratePDF = (assignee: Collaborator | Equipment, type: 'person' | 'equipment') => {
+      if (!selectedLicense) return;
+      generateLicenseHandoverPDF(company, selectedLicense, assignee, type);
+  };
+
   const filteredLicenses = licenses.filter(license => {
     if (filterMode === 'All') return true;
     const status = calculateStatus(license.expirationDate);
@@ -119,21 +151,26 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
     <div className="animate-in slide-in-from-right-4 duration-500 pb-20">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Licencias de Software</h1>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-bold text-gray-900">Licencias de Software</h1>
+            <span className="bg-brand-blue-cyan/10 text-brand-blue-cyan px-3 py-1 rounded-full text-xs font-bold border border-brand-blue-cyan/20 whitespace-nowrap">
+                {licenses.length} Licencias
+            </span>
+          </div>
           <p className="text-gray-500">Control de expiraciones y claves para {company.name}</p>
         </div>
         <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
            {/* ... botones filtro ... */}
-           <div className="bg-white border border-gray-200 rounded-xl p-1 flex w-full md:w-auto">
+           <div className="bg-white border border-gray-200 rounded-xl p-1 flex w-full md:w-auto h-[42px]">
               <button 
                 onClick={() => setFilterMode('All')}
-                className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-xs font-bold transition-all ${filterMode === 'All' ? 'bg-gray-100 text-gray-900 shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}
+                className={`flex-1 md:flex-none px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${filterMode === 'All' ? 'bg-gray-100 text-gray-900 shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}
               >
                 Todas
               </button>
               <button 
                 onClick={() => setFilterMode('Priority')}
-                className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${filterMode === 'Priority' ? 'bg-red-50 text-red-600 shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}
+                className={`flex-1 md:flex-none px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${filterMode === 'Priority' ? 'bg-red-50 text-red-600 shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}
               >
                 <i className="fa-solid fa-bell"></i>
                 Vencimientos
@@ -141,7 +178,7 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
            </div>
            <button 
              onClick={handleOpenCreate}
-             className="w-full md:w-auto bg-brand-blue-cyan text-white px-5 py-2.5 rounded-xl font-bold hover:bg-brand-blue-dark transition-all shadow-lg shadow-brand-blue-cyan/10 flex items-center justify-center gap-2 shrink-0"
+             className="w-full md:w-auto bg-brand-blue-cyan text-white px-5 py-2.5 rounded-xl font-bold hover:bg-brand-blue-dark transition-all shadow-lg shadow-brand-blue-cyan/10 flex items-center justify-center gap-2 shrink-0 active:scale-95 touch-manipulation h-[42px]"
            >
              <i className="fa-solid fa-plus"></i>
              <span>Nueva Licencia</span>
@@ -156,7 +193,7 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
                 <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Software / Proveedor</th>
-                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Asignado A</th>
+                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Uso de Cupos</th>
                 <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Clave</th>
                 <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Vigencia</th>
                 <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Estado</th>
@@ -167,27 +204,32 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
               {filteredLicenses.map((license) => {
                 const status = calculateStatus(license.expirationDate);
                 const statusConfig = getStatusConfig(status);
-                const assignedUser = license.assignedTo ? collaborators.find(c => c.id === license.assignedTo) : null;
+                
+                // Calculo de uso
+                const usedSlots = (license.assignedTo?.length || 0) + (license.assignedToEquipment?.length || 0);
+                const totalSlots = license.totalSlots || 1;
+                const usagePercent = Math.min(100, Math.round((usedSlots / totalSlots) * 100));
 
                 return (
-                  <tr key={license.id} className="hover:bg-gray-50/50 transition-colors group">
+                  <tr 
+                    id={`license-${license.id}`}
+                    key={license.id} 
+                    className="hover:bg-gray-50/50 transition-colors group"
+                  >
                     <td className="px-6 py-4">
                        <div>
                          <p className="font-bold text-gray-900 text-sm">{license.name}</p>
                          <p className="text-xs text-gray-500">{license.vendor}</p>
                        </div>
                     </td>
-                    <td className="px-6 py-4">
-                        {assignedUser ? (
-                            <div className="flex items-center gap-2">
-                                <div className="w-6 h-6 rounded-full bg-brand-blue-cyan/10 text-brand-blue-cyan flex items-center justify-center text-[10px] font-bold">
-                                    {assignedUser.firstName.charAt(0)}{assignedUser.lastName.charAt(0)}
-                                </div>
-                                <span className="text-xs font-bold text-gray-700">{assignedUser.firstName} {assignedUser.lastName}</span>
-                            </div>
-                        ) : (
-                            <span className="text-xs text-gray-400 italic">-- Sin Asignar --</span>
-                        )}
+                    <td className="px-6 py-4 w-48">
+                        <div className="flex justify-between text-xs mb-1">
+                            <span className="font-bold text-gray-600">{usedSlots} / {totalSlots}</span>
+                            <span className="text-gray-400 font-bold">{usagePercent}%</span>
+                        </div>
+                        <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full transition-all ${usagePercent >= 100 ? 'bg-red-500' : 'bg-brand-blue-cyan'}`} style={{width: `${usagePercent}%`}}></div>
+                        </div>
                     </td>
                     <td className="px-6 py-4">
                        <div className="flex items-center gap-2">
@@ -249,10 +291,11 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
          {filteredLicenses.map((license) => {
             const status = calculateStatus(license.expirationDate);
             const statusConfig = getStatusConfig(status);
-            const assignedUser = license.assignedTo ? collaborators.find(c => c.id === license.assignedTo) : null;
+            const usedSlots = (license.assignedTo?.length || 0) + (license.assignedToEquipment?.length || 0);
+            const totalSlots = license.totalSlots || 1;
 
             return (
-              <div key={license.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden">
+              <div id={`license-${license.id}`} key={license.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden">
                  <div className="flex justify-between items-start mb-4">
                     <div>
                       <p className="font-bold text-gray-900">{license.name}</p>
@@ -272,12 +315,15 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
                  </div>
 
                  <div className="space-y-3">
-                    {assignedUser && (
-                        <div className="flex items-center gap-2 bg-blue-50 p-2 rounded-lg">
-                            <i className="fa-solid fa-user text-brand-blue-cyan text-xs"></i>
-                            <span className="text-xs font-bold text-gray-700">{assignedUser.firstName} {assignedUser.lastName}</span>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                        <div className="flex justify-between text-xs mb-1">
+                            <span className="font-bold text-gray-500 uppercase">Ocupación</span>
+                            <span className="font-bold text-gray-700">{usedSlots}/{totalSlots}</span>
                         </div>
-                    )}
+                        <div className="w-full h-1.5 bg-gray-200 rounded-full">
+                            <div className="h-full bg-brand-blue-cyan rounded-full" style={{width: `${Math.min(100, (usedSlots/totalSlots)*100)}%`}}></div>
+                        </div>
+                    </div>
 
                     <div>
                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Serial / Key</p>
@@ -307,8 +353,8 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
       {viewModalOpen && selectedLicense && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4 overflow-y-auto">
           {/* ... contenido modal detalles ... */}
-          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl animate-in zoom-in-95 duration-200">
-             <div className="p-8">
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+             <div className="p-8 pb-0 shrink-0">
                 {/* Header */}
                 <div className="flex justify-between items-start mb-6">
                    <div>
@@ -322,29 +368,78 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
                       <i className="fa-solid fa-times text-xl"></i>
                    </button>
                 </div>
+             </div>
 
-                {selectedLicense.assignedTo && (() => {
-                    const user = collaborators.find(c => c.id === selectedLicense.assignedTo);
-                    if (user) return (
-                        <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 mb-6 flex items-center gap-3">
-                            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-brand-blue-cyan border border-blue-100 shadow-sm">
-                                <i className="fa-solid fa-user"></i>
-                            </div>
-                            <div>
-                                <p className="text-[10px] uppercase font-bold text-blue-400 tracking-wider">Licencia Asignada A</p>
-                                <p className="font-bold text-gray-800">{user.firstName} {user.lastName}</p>
-                                <p className="text-xs text-gray-500">{user.cargo}</p>
-                            </div>
-                        </div>
-                    );
-                    return null;
-                })()}
+             <div className="flex-1 overflow-y-auto px-8 py-4 custom-scrollbar">
+                {/* LOGICA VISUALIZACION ASIGNACION MULTIPLE CON SCROLL Y PDF */}
+                <div className="mb-6">
+                    <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-3">Asignaciones ({((selectedLicense.assignedTo || []).length + (selectedLicense.assignedToEquipment || []).length)} / {selectedLicense.totalSlots})</h3>
+                    
+                    {/* Contenedor con Scroll para muchos usuarios */}
+                    <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar pr-2">
+                        {/* Asignación a Personas */}
+                        {(selectedLicense.assignedTo || []).map(id => {
+                            const user = collaborators.find(c => c.id === id);
+                            if (!user) return null;
+                            return (
+                                <div key={id} className="bg-blue-50 p-3 rounded-xl border border-blue-100 flex items-center justify-between gap-3 group hover:border-blue-300 transition-colors">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center text-brand-blue-cyan border border-blue-100 shadow-sm text-xs font-bold shrink-0">
+                                            {user.firstName[0]}{user.lastName[0]}
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-gray-800 text-sm leading-tight">{user.firstName} {user.lastName}</p>
+                                            <p className="text-[10px] text-gray-500 uppercase">{user.cargo}</p>
+                                        </div>
+                                    </div>
+                                    <button 
+                                        onClick={() => handleGeneratePDF(user, 'person')}
+                                        className="w-8 h-8 flex items-center justify-center text-red-500 bg-white border border-red-100 hover:bg-red-50 rounded-lg shadow-sm transition-all"
+                                        title="Generar Acta de Entrega"
+                                    >
+                                        <i className="fa-solid fa-file-pdf"></i>
+                                    </button>
+                                </div>
+                            );
+                        })}
+                        
+                        {/* Asignación a Equipos */}
+                        {(selectedLicense.assignedToEquipment || []).map(id => {
+                            const eq = equipmentList.find(e => e.id === id);
+                            if (!eq) return null;
+                            return (
+                                <div key={id} className="bg-gray-50 p-3 rounded-xl border border-gray-200 flex items-center justify-between gap-3 group hover:border-gray-400 transition-colors">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-gray-500 border border-gray-200 shadow-sm shrink-0">
+                                            <i className="fa-solid fa-laptop text-xs"></i>
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-gray-800 text-sm leading-tight">{eq.brand} {eq.model}</p>
+                                            <p className="text-[10px] text-gray-500 uppercase">SN: {eq.serialNumber}</p>
+                                        </div>
+                                    </div>
+                                    <button 
+                                        onClick={() => handleGeneratePDF(eq, 'equipment')}
+                                        className="w-8 h-8 flex items-center justify-center text-red-500 bg-white border border-red-100 hover:bg-red-50 rounded-lg shadow-sm transition-all"
+                                        title="Generar Acta de Entrega"
+                                    >
+                                        <i className="fa-solid fa-file-pdf"></i>
+                                    </button>
+                                </div>
+                            );
+                        })}
+
+                        {((selectedLicense.assignedTo || []).length === 0 && (selectedLicense.assignedToEquipment || []).length === 0) && (
+                            <p className="text-sm text-gray-400 italic text-center py-4">No hay asignaciones activas.</p>
+                        )}
+                    </div>
+                </div>
 
                 {/* Key Section */}
-                <div className="bg-slate-50 rounded-2xl p-8 mb-8 border border-slate-100 text-center relative overflow-hidden">
+                <div className="bg-slate-50 rounded-2xl p-6 mb-8 border border-slate-100 text-center relative overflow-hidden">
                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-brand-blue-cyan to-brand-blue-dark"></div>
                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Clave de Licencia / Serial</p>
-                   <code className="text-2xl md:text-3xl font-mono font-black text-slate-800 break-all select-all">
+                   <code className="text-xl md:text-2xl font-mono font-black text-slate-800 break-all select-all">
                       {selectedLicense.key}
                    </code>
                    <p className="text-[10px] text-slate-400 mt-2 italic">Haga clic para seleccionar y copiar</p>
@@ -394,16 +489,16 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
                       })()}
                    </div>
                 </div>
+             </div>
 
-                {/* Footer */}
-                <div className="flex justify-end pt-4 border-t border-gray-100">
-                   <button 
-                      onClick={() => setViewModalOpen(false)} 
-                      className="px-8 py-3 bg-gray-900 hover:bg-black text-white font-bold rounded-xl shadow-lg shadow-gray-900/20 transition-all text-sm"
-                   >
-                      Cerrar Ventana
-                   </button>
-                </div>
+             {/* Footer */}
+             <div className="p-8 pt-0 mt-auto">
+                <button 
+                    onClick={() => setViewModalOpen(false)} 
+                    className="w-full py-3 bg-gray-900 hover:bg-black text-white font-bold rounded-xl shadow-lg shadow-gray-900/20 transition-all text-sm"
+                >
+                    Cerrar Ventana
+                </button>
              </div>
           </div>
         </div>
@@ -411,7 +506,7 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
 
       {/* MODAL NUEVA / EDITAR LICENCIA */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="p-8">
               <div className="flex justify-between items-center mb-6">
@@ -425,10 +520,12 @@ const LicenseManager: React.FC<LicenseManagerProps> = ({ company }) => {
 
               <LicenseForm 
                 initialData={formInitialData}
+                existingLicenses={licenses} // Pasar licencias existentes para validación
                 onSubmit={handleSubmit}
                 onCancel={() => setIsModalOpen(false)}
                 isEditing={!!editingId}
                 collaborators={collaborators}
+                equipmentList={equipmentList}
               />
             </div>
           </div>

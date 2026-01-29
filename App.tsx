@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { COMPANIES, NAVIGATION_ITEMS } from './appData';
 import { Company, UserRole } from './types';
@@ -9,12 +10,16 @@ import CredentialVault from './components/CredentialVault';
 import MaintenanceManager from './components/MaintenanceManager';
 import ReportsModule from './components/ReportsModule';
 import SecurityLock from './components/SecurityLock';
+import { useInventory } from './context/InventoryContext';
 
 // Configuración de Seguridad
 const INACTIVITY_LIMIT_MS = 20 * 60 * 1000; // 20 minutos
 const MASTER_PIN = '0000'; 
 
 const App = () => {
+  // Contexto para búsqueda de activos
+  const { data } = useInventory();
+
   // Estado de Navegación y Datos
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [selectedCompany, setSelectedCompany] = useState<Company>(COMPANIES[0]);
@@ -101,7 +106,7 @@ const App = () => {
   return (
     <>
       <SecurityLock isLocked={isLocked} isAuthenticated={isAuthenticated} onUnlock={handleUnlock} />
-
+      
       {isAuthenticated && (
         <div className={`flex h-screen w-full overflow-hidden bg-gray-50 ${isLocked ? 'blur-sm brightness-50 pointer-events-none select-none' : ''}`}>
           
@@ -172,7 +177,8 @@ const App = () => {
 
           <main className="flex-1 flex flex-col min-w-0 w-full h-full relative bg-gray-50">
             <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-200 px-4 md:px-8 py-4 flex items-center justify-between shadow-sm gap-4 h-header transition-all">
-              <div className="flex items-center gap-2 md:gap-6 flex-1 md:flex-none max-w-full md:max-w-[60%] min-w-0">
+              {/* Header content wrapper to prevent overflow */}
+              <div className="flex items-center gap-3 md:gap-6 flex-1 min-w-0">
                 <button 
                   onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                   className="text-gray-500 hover:text-gray-900 transition-colors p-2 hover:bg-gray-100 rounded-xl active:scale-95 transform duration-100 shrink-0"
@@ -180,7 +186,7 @@ const App = () => {
                   <i className={`fa-solid ${isSidebarOpen ? 'fa-bars-staggered' : 'fa-bars'} text-xl`}></i>
                 </button>
                 
-                <div className="relative group flex items-center flex-1 min-w-0 max-w-full">
+                <div className="relative group flex items-center flex-1 min-w-0 max-w-full md:max-w-xs">
                   <i className="fa-solid fa-building absolute left-3 z-10 text-gray-400 text-xs pointer-events-none"></i>
                   <select 
                     value={selectedCompany.id}
@@ -198,8 +204,9 @@ const App = () => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 md:gap-8 shrink-0">
-                 <div className="hidden md:flex flex-col items-end">
+              <div className="flex items-center gap-3 md:gap-6 shrink-0 ml-2">
+                 
+                 <div className="hidden md:flex flex-col items-end border-l border-gray-200 pl-6">
                     <span className="text-[10px] text-gray-400 uppercase font-black tracking-widest leading-none mb-1">Organización Actual</span>
                     <img src={selectedCompany.logo} alt={selectedCompany.name} className="h-10 object-contain object-right" />
                  </div>
@@ -210,7 +217,8 @@ const App = () => {
             </header>
 
             <section className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar w-full">
-              <div className="max-w-7xl mx-auto w-full">
+              {/* Actualizado para soportar pantallas mucho más anchas (1920px+) */}
+              <div className="max-w-[1920px] mx-auto w-full">
                 {renderContent()}
               </div>
             </section>

@@ -1,11 +1,21 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { AppData, loadData, saveFullData } from '../services/inventoryService';
-import { Equipment, Collaborator, SoftwareLicense, MaintenanceRecord, EquipmentStatus, Credential } from '../types';
+import { Equipment, Collaborator, SoftwareLicense, MaintenanceRecord, EquipmentStatus, Credential, EquipmentHistory } from '../types';
+
+interface RedirectTarget {
+  type: 'equipment' | 'license' | 'credential';
+  id: number;
+}
 
 interface InventoryContextType {
   data: AppData;
   loading: boolean;
   
+  // Navigation & Highlighting
+  redirectTarget: RedirectTarget | null;
+  setRedirectTarget: (target: RedirectTarget | null) => void;
+
   // Equipment Actions
   addEquipment: (data: Omit<Equipment, 'id'>) => void;
   updateEquipment: (data: Equipment) => void;
@@ -40,6 +50,7 @@ const InventoryContext = createContext<InventoryContextType | undefined>(undefin
 
 export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [data, setData] = useState<AppData | null>(null);
+  const [redirectTarget, setRedirectTarget] = useState<RedirectTarget | null>(null);
 
   useEffect(() => {
     // Cargar datos iniciales
@@ -53,37 +64,95 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     saveFullData(newData);
   };
 
+  // Helper interno para crear registro de historial
+  const createHistoryRecord = (
+      currentHistory: EquipmentHistory[], 
+      equipId: number, 
+      action: EquipmentHistory['actionType'], 
+      desc: string
+    ): EquipmentHistory[] => {
+      const newId = currentHistory.length > 0 ? Math.max(...currentHistory.map(h => h.id)) + 1 : 1;
+      return [...currentHistory, {
+        id: newId,
+        equipmentId: equipId,
+        date: new Date().toISOString(),
+        actionType: action,
+        description: desc,
+        user: 'Admin'
+      }];
+  };
+
   const addEquipment = (equipData: Omit<Equipment, 'id'>) => {
     if (!data) return;
     const newId = data.equipment.length > 0 ? Math.max(...data.equipment.map(e => e.id)) + 1 : 1;
     const newEquip = { ...equipData, id: newId };
     
+    // Agregar Historial de Creación
+    const updatedHistory = createHistoryRecord(
+      data.history || [], 
+      newId, 
+      'CREATION', 
+      `Equipo ingresado al inventario con estado: ${newEquip.status}`
+    );
+
     updateState({
       ...data,
-      equipment: [...data.equipment, newEquip]
+      equipment: [...data.equipment, newEquip],
+      history: updatedHistory
     });
   };
 
   const updateEquipment = (equipData: Equipment) => {
     if (!data) return;
+    
+    const oldEquip = data.equipment.find(e => e.id === equipData.id);
+    let updatedHistory = [...(data.history || [])];
+
+    // Detectar cambios importantes para el historial
+    if (oldEquip) {
+       // 1. Cambio de Asignación
+       if (oldEquip.assignedTo !== equipData.assignedTo) {
+          if (equipData.assignedTo) {
+             const user = data.collaborators.find(c => c.id === equipData.assignedTo);
+             updatedHistory = createHistoryRecord(updatedHistory, equipData.id, 'ASSIGNMENT', `Asignado a: ${user ? user.firstName + ' ' + user.lastName : 'Usuario ID ' + equipData.assignedTo}`);
+          } else {
+             updatedHistory = createHistoryRecord(updatedHistory, equipData.id, 'UNASSIGNMENT', 'Equipo devuelto a stock (Desasignado)');
+          }
+       }
+       // 2. Cambio de Estado
+       if (oldEquip.status !== equipData.status) {
+          updatedHistory = createHistoryRecord(updatedHistory, equipData.id, 'STATUS_CHANGE', `Estado cambiado de ${oldEquip.status} a ${equipData.status}`);
+       }
+       // 3. Cambio de Ubicación (si no está asignado)
+       if (!equipData.assignedTo && oldEquip.location !== equipData.location) {
+          updatedHistory = createHistoryRecord(updatedHistory, equipData.id, 'UPDATE', `Ubicación actualizada: ${equipData.location}`);
+       }
+    }
+
     const updatedList = data.equipment.map(e => e.id === equipData.id ? equipData : e);
-    updateState({ ...data, equipment: updatedList });
+    
+    updateState({ 
+        ...data, 
+        equipment: updatedList,
+        history: updatedHistory
+    });
   };
 
   const deleteEquipment = (id: number) => {
     if (!data) return;
     
-    // 1. LIMPIEZA EN CASCADA: Eliminar historial de mantenimientos de este equipo
-    // Esto previene errores de "Equipo no encontrado" en el módulo de mantenimiento
+    // 1. LIMPIEZA EN CASCADA
     const updatedMaintenance = (data.maintenance || []).filter(m => m.equipmentId !== id);
+    const updatedHistory = (data.history || []).filter(h => h.equipmentId !== id); 
 
-    // 2. Eliminar el equipo de la lista principal
+    // 2. Eliminar el equipo
     const updatedEquipment = data.equipment.filter(e => e.id !== id);
     
     updateState({
       ...data,
       equipment: updatedEquipment,
-      maintenance: updatedMaintenance
+      maintenance: updatedMaintenance,
+      history: updatedHistory
     });
   };
 
@@ -106,19 +175,24 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const deleteCollaborator = (id: number) => {
     if (!data) return;
 
-    // 1. LIMPIEZA EN CASCADA: Desvincular equipos asignados a este colaborador
-    // Los equipos asignados pasan a estado "Sin Asignar" (stock)
-    const updatedEquipment = data.equipment.map(e => 
-      e.assignedTo === id ? { ...e, assignedTo: undefined } : e
-    );
+    // 1. LIMPIEZA EN CASCADA: Desvincular equipos asignados
+    let updatedHistory = [...(data.history || [])];
+    
+    const updatedEquipment = data.equipment.map(e => {
+      if (e.assignedTo === id) {
+          updatedHistory = createHistoryRecord(updatedHistory, e.id, 'UNASSIGNMENT', 'Desasignación automática por eliminación de colaborador');
+          return { ...e, assignedTo: undefined };
+      }
+      return e;
+    });
 
-    // 2. Eliminar al colaborador
     const updatedCollaborators = data.collaborators.filter(c => c.id !== id);
 
     updateState({
       ...data,
       equipment: updatedEquipment,
-      collaborators: updatedCollaborators
+      collaborators: updatedCollaborators,
+      history: updatedHistory
     });
   };
 
@@ -159,14 +233,20 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const maintenanceList = data.maintenance || [];
     const newId = maintenanceList.length > 0 ? Math.max(...maintenanceList.map(m => m.id)) + 1 : 1;
     const newRecord = { ...recordData, id: newId };
+    
+    let updatedHistory = [...(data.history || [])];
 
-    // Actualizar estado del equipo según la severidad
     const updatedEquipment = data.equipment.map(e => {
       if (e.id === recordData.equipmentId) {
+        let newStatus = e.status;
         if (recordData.severity === 'TotalLoss') {
-          return { ...e, status: EquipmentStatus.RETIRED, assignedTo: undefined };
+          newStatus = EquipmentStatus.RETIRED;
+          updatedHistory = createHistoryRecord(updatedHistory, e.id, 'STATUS_CHANGE', 'Equipo retirado por Pérdida Total');
+          return { ...e, status: newStatus, assignedTo: undefined };
         } else {
-          return { ...e, status: EquipmentStatus.MAINTENANCE };
+          newStatus = EquipmentStatus.MAINTENANCE;
+          updatedHistory = createHistoryRecord(updatedHistory, e.id, 'MAINTENANCE', `Ingreso a mantenimiento: ${recordData.title}`);
+          return { ...e, status: newStatus };
         }
       }
       return e;
@@ -175,18 +255,21 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     updateState({
       ...data,
       maintenance: [...maintenanceList, newRecord],
-      equipment: updatedEquipment
+      equipment: updatedEquipment,
+      history: updatedHistory
     });
   };
 
   const resolveTicket = (id: number, details: string, date: string, updatedSpecs?: Partial<Equipment>, markAsDelivered: boolean = false) => {
     if (!data) return;
 
-    // 1. Encontrar el ticket
     const ticket = data.maintenance.find(m => m.id === id);
     if (!ticket) return;
+    
+    let updatedHistory = [...(data.history || [])];
+    
+    updatedHistory = createHistoryRecord(updatedHistory, ticket.equipmentId, 'MAINTENANCE', `Mantenimiento finalizado: ${details}`);
 
-    // 2. Actualizar el Ticket a Cerrado
     const updatedMaintenance = data.maintenance.map(m => 
       m.id === id 
         ? { 
@@ -199,18 +282,16 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         : m
     );
 
-    // 3. Restaurar estado del equipo a Activo y actualizar specs si existen
     const updatedEquipment = data.equipment.map(e => {
       if (e.id === ticket.equipmentId) {
         let updatedE = { ...e };
-        // Si no fue pérdida total, volver a activo
         if (e.status === EquipmentStatus.MAINTENANCE) {
           updatedE.status = EquipmentStatus.ACTIVE;
-          // NOTA: Se mantiene la asignación al usuario (e.assignedTo no se toca)
+          updatedHistory = createHistoryRecord(updatedHistory, e.id, 'STATUS_CHANGE', 'Equipo reactivado tras mantenimiento');
         }
-        // Aplicar cambios de hardware si los hay
         if (updatedSpecs) {
           updatedE = { ...updatedE, ...updatedSpecs };
+          updatedHistory = createHistoryRecord(updatedHistory, e.id, 'UPDATE', 'Actualización de hardware realizada');
         }
         return updatedE;
       }
@@ -220,13 +301,14 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     updateState({
       ...data,
       maintenance: updatedMaintenance,
-      equipment: updatedEquipment
+      equipment: updatedEquipment,
+      history: updatedHistory
     });
   };
 
   const toggleMaintenanceDelivery = (id: number) => {
     if (!data) return;
-    
+
     const updatedMaintenance = data.maintenance.map(m => {
       if (m.id === id && m.status === 'Closed') {
         const newStatus = m.deliveryStatus === 'Delivered' ? 'Pending' : 'Delivered';
@@ -243,7 +325,6 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const addCredential = (credData: Omit<Credential, 'id'>) => {
     if (!data) return;
-    // Asegurar que exista el array
     const currentCreds = data.credentials || [];
     const newId = currentCreds.length > 0 ? Math.max(...currentCreds.map(c => c.id)) + 1 : 1;
     const newCred = { ...credData, id: newId };
@@ -281,6 +362,8 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     <InventoryContext.Provider value={{
       data,
       loading: false,
+      redirectTarget,
+      setRedirectTarget,
       addEquipment,
       updateEquipment,
       deleteEquipment,

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Equipment, EquipmentStatus, Collaborator } from '../../types';
 
@@ -63,7 +64,8 @@ const SUGGESTIONS_DB = {
 
 interface EquipmentFormProps {
   initialData?: Partial<Equipment>;
-  onSubmit: (data: Partial<Equipment>) => void;
+  existingEquipment: Equipment[]; 
+  onSubmit: (data: Partial<Equipment>, generatePdf?: boolean) => void;
   onCancel: () => void;
   collaborators: Collaborator[];
   isEditing: boolean;
@@ -71,6 +73,7 @@ interface EquipmentFormProps {
 
 const EquipmentForm: React.FC<EquipmentFormProps> = ({ 
   initialData, 
+  existingEquipment,
   onSubmit, 
   onCancel, 
   collaborators, 
@@ -93,6 +96,8 @@ const EquipmentForm: React.FC<EquipmentFormProps> = ({
   };
 
   const [formData, setFormData] = useState<Partial<Equipment>>(initialData || defaultData);
+  const [error, setError] = useState<string | null>(null); 
+  const [generatePdf, setGeneratePdf] = useState(false);
 
   const getCategoryFromType = (type: string): 'Computer' | 'Server' | 'Mobile' | 'Peripheral' => {
      if (['Laptop', 'Desktop'].includes(type)) return 'Computer';
@@ -116,6 +121,21 @@ const EquipmentForm: React.FC<EquipmentFormProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+
+    // Validación: Número de Serie Único
+    if (formData.serialNumber) {
+        const duplicate = existingEquipment.find(e => 
+            e.serialNumber.toLowerCase() === formData.serialNumber!.toLowerCase() && 
+            e.id !== formData.id // Ignorar el mismo equipo si se está editando
+        );
+
+        if (duplicate) {
+            setError(`El Número de Serie "${formData.serialNumber}" ya existe en el inventario (Equipo ID: ${duplicate.id}).`);
+            return;
+        }
+    }
+
     // Limpieza de datos según el tipo
     const cleanedData = { ...formData };
     if (formData.type === 'Periférico') {
@@ -126,11 +146,18 @@ const EquipmentForm: React.FC<EquipmentFormProps> = ({
     } else {
       cleanedData.peripheralType = '';
     }
-    onSubmit(cleanedData);
+    
+    // Pasar indicador de PDF al submit
+    onSubmit(cleanedData, generatePdf);
   };
 
+  // Limpiar error al cambiar el serial
+  useEffect(() => {
+    if (error) setError(null);
+  }, [formData.serialNumber]);
+
   return (
-    <form className="space-y-6" onSubmit={handleSubmit}>
+    <form className="space-y-6 pb-4" onSubmit={handleSubmit}>
       <datalist id="brandsOptions">
         {activeBrands.map(b => <option key={b} value={b} />)}
       </datalist>
@@ -149,6 +176,13 @@ const EquipmentForm: React.FC<EquipmentFormProps> = ({
       <datalist id="peripheralTypeOptions">
         {SUGGESTIONS_DB.peripheralTypes.map(p => <option key={p} value={p} />)}
       </datalist>
+
+      {error && (
+        <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm font-bold flex items-center gap-2 border border-red-100 animate-in fade-in slide-in-from-top-1">
+            <i className="fa-solid fa-circle-exclamation text-lg"></i>
+            {error}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <div>
@@ -173,7 +207,7 @@ const EquipmentForm: React.FC<EquipmentFormProps> = ({
             required
             value={formData.serialNumber}
             onChange={(e) => setFormData({...formData, serialNumber: e.target.value})}
-            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-brand-blue-cyan/10 focus:border-brand-blue-cyan font-bold text-sm transition-all" 
+            className={`w-full p-3 bg-gray-50 border rounded-xl outline-none focus:ring-4 font-bold text-sm transition-all ${error ? 'border-red-400 focus:ring-red-100' : 'border-gray-200 focus:ring-brand-blue-cyan/10 focus:border-brand-blue-cyan'}`}
           />
         </div>
       </div>
@@ -227,7 +261,7 @@ const EquipmentForm: React.FC<EquipmentFormProps> = ({
             <i className="fa-solid fa-microchip text-brand-blue-cyan"></i>
             Características Técnicas
           </h3>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {showComputerSpecs && (
               <>
                 <div>
@@ -294,7 +328,10 @@ const EquipmentForm: React.FC<EquipmentFormProps> = ({
           <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">Asignar a Colaborador</label>
           <select 
             value={formData.assignedTo || ''}
-            onChange={(e) => setFormData({...formData, assignedTo: e.target.value ? Number(e.target.value) : undefined})}
+            onChange={(e) => {
+                setFormData({...formData, assignedTo: e.target.value ? Number(e.target.value) : undefined});
+                if (!e.target.value) setGeneratePdf(false); // Resetear si se desasigna
+            }}
             className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-brand-blue-cyan/10 focus:border-brand-blue-cyan font-bold text-sm transition-all"
           >
             <option value="">-- Sin Asignar (Equipo en Stock) --</option>
@@ -302,6 +339,22 @@ const EquipmentForm: React.FC<EquipmentFormProps> = ({
               <option key={c.id} value={c.id}>{c.firstName} {c.lastName} | {c.cargo}</option>
             ))}
           </select>
+          
+          {/* CHECKBOX ACTA DE ENTREGA */}
+          {formData.assignedTo && (
+              <label className="flex items-center gap-2 mt-3 cursor-pointer group bg-blue-50 p-3 rounded-lg border border-blue-100 hover:border-blue-300 transition-all">
+                  <input 
+                    type="checkbox" 
+                    checked={generatePdf} 
+                    onChange={(e) => setGeneratePdf(e.target.checked)}
+                    className="w-4 h-4 text-brand-blue-cyan rounded focus:ring-brand-blue-cyan" 
+                  />
+                  <div className="flex items-center gap-2">
+                      <i className="fa-solid fa-file-contract text-brand-blue-dark"></i>
+                      <span className="text-xs font-bold text-brand-blue-dark">Generar Acta de Entrega al guardar</span>
+                  </div>
+              </label>
+          )}
         </div>
       </div>
 
@@ -316,7 +369,7 @@ const EquipmentForm: React.FC<EquipmentFormProps> = ({
           />
       </div>
 
-      <div className="pt-4 flex gap-4">
+      <div className="pt-4 flex flex-row gap-4">
         <button type="button" onClick={onCancel} className="flex-1 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-600 font-black text-xs uppercase tracking-widest rounded-xl transition-all">
           Cancelar
         </button>
