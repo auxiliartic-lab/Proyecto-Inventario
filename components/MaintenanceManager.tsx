@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Company, MaintenanceRecord, Equipment, Attachment } from '../types';
 import { useInventory } from '../context/InventoryContext';
+import { useAuth } from '../context/AuthContext'; // Import Auth
 import ResolveTicketForm from './forms/ResolveTicketForm';
 
 interface MaintenanceManagerProps {
@@ -10,6 +11,7 @@ interface MaintenanceManagerProps {
 
 const MaintenanceManager: React.FC<MaintenanceManagerProps> = ({ company }) => {
   const { data, resolveTicket, toggleMaintenanceDelivery } = useInventory();
+  const { user } = useAuth(); // Get user
   const records = (data.maintenance || []).filter(m => m.companyId === company.id);
   
   const [filterType, setFilterType] = useState<string>('Todos');
@@ -63,7 +65,8 @@ const MaintenanceManager: React.FC<MaintenanceManagerProps> = ({ company }) => {
 
   const handleResolveSubmit = (data: { details: string, date: string, specs?: Partial<Equipment>, markAsDelivered: boolean }) => {
     if (ticketToResolve) {
-      resolveTicket(ticketToResolve.id, data.details, data.date, data.specs, data.markAsDelivered);
+      // USAR user.name PARA EL HISTORIAL
+      resolveTicket(ticketToResolve.id, data.details, data.date, data.specs, data.markAsDelivered, user?.name || user?.username);
       setIsResolveModalOpen(false);
       setTicketToResolve(null);
     }

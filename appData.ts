@@ -1,10 +1,7 @@
 
 import { Company } from './types';
 
-// =========================================================================================
-// LOGOS CORPORATIVOS
-// =========================================================================================
-
+// ... (KEEP LOGO CONSTANTS AS IS) ...
 const LOGO_ECOVITTA = `data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0MDAgMTIwIiBmaWxsPSJub25lIj4KICA8IS0t IFRleHRvIC0tPgogIDxwYXRoIGQ9Ik00MCA4MCBDMzAgODAgMjAgNzAgMjAgNTUgQzIwIDQwIDMwIDMwIDQwIDMwIEM1MCAzMCA1NSAzNSA1NSA0MCBNMjAgNTUgTDU1IDU1IiBzdHJva2U9IiM1MzgzQTIiIHN0cm9rZS13aWR0aD0iNCIgZmlsbD0ibm9uZSIvPgogIDxwYXRoIGQ9Ik03MCA4MCBDNjAgODAgNjAgNTUgNjAgNTUgQzYwIDMwIDgwIDMwIDkwIDMwIiBzdHJva2U9IiM1MzgzQTIiIHN0cm9rZS13aWR0aD0iNCIgZmlsbD0ibm9uZSIvPgogIDxwYXRoIGQ9Ik0xMTAgNTUgQzExMCA4MCAxMzAgODAgMTMwIDU1IEMxMzAgMzAgMTEwIDMwIDExMCA1NSBaIiBzdHJva2U9IiM1MzgzQTIiIHN0cm9rZS13aWR0aD0iNCIgZmlsbD0ibm9uZSIvPgogIDxwYXRoIGQ9Ik0xNTAgMzAgTDE2MCA4MCBMMTcwIDMwIiBzdHJva2U9IiM1MzgzQTIiIHN0cm9rZS13aWR0aD0iNCIgZmlsbD0ibm9uZSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+CiAgPHBhdGggZD0iTTE5MCAzMCBMMTkwIDgwIiBzdHJva2U9IiM1MzgzQTIiIHN0cm9rZS13aWR0aD0iNCIgZmlsbD0ibm9uZSIvPgogIDxwYXRoIGQ9Ik0yMTAgMzAgTDIxMCA4MCIgc3Ryb2tlPSIjNTM4M0EyIiBzdHJva2Utd2lkdGg9IjQiIGZpbGw9Im5vbmUiLz4KICA8cGF0aCBkPSJNMjAwIDQwIEwyMjAgNDAiIHN0cm9rZT0iIzUzODNBMiIgc3Ryb2tlLXdpZHRoPSI0IiBmaWxsPSJub25lIi8+CiAgPHBhdGggZD0iTTI0MCA4MCBDMjMwIDgwIDIyMCA3MCAyMjAgNTUgQzIyMCA0MCAyMzAgMzAgMjQwIDMwIEMyNTAgMzAgMjU1IDM1IDI1NSA0MCBNMjIwIDU1IEwyNTUgNTUiIHN0cm9rZT0iIzUzODNBMiIgc3Ryb2tlLXdpZHRoPSI0IiBmaWxsPSJub25lIi8+CiAgPCEtLSBEZXRhbGxlIEdvdGEgLS0+CiAgPHBhdGggZD0iTTE5MCBMMjAgQzE4MCA1IDE3MCAyMCAxNzAgMzAgQzE3MCA0NSAxOTAgNDUgMTkwIDMwIFoiIGZpbGw9IiM1MzgzQTIiLz4KPC9zdmc+`;
 
 const LOGO_IBC = `data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0MDAgMTUwIiBmaWxsPSJub25lIj4KICA8IS0tIGkgLS0+CiAgPHBhdGggZD0iTTgwIDIwIEw4MCAxMDAiIHN0cm9rZT0iIzAwQUVFRiIgc3Ryb2tlLXdpZHRoPSIxNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+CiAgPGNpcmNsZSBjeD0iODAiIGN5PSIxMCIgcj0iNyIgZmlsbD0iIzAwQUVFRiIvPgogIDwhLS0gYiAtLT4KICA8cGF0aCBkPSJNMTMwIDIwIEwxMzAgODAgQzEzMCAxMTAgMTYwIDExMCAxNjAgODAgQzE2MCA1MCAxMzAgNTAgMTMwIDgwIiBzdHJva2U9IiMwMEFFRUYiIHN0cm9rZS13aWR0aD0iMTUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgZmlsbD0ibm9uZSIvPgogIDwhLS0gY2lyY3VsbyBhbWFyaWxsbyBjb24gaG9qYSAtLT4KICA8Y2lyY2xlIGN4PSIyMjAiIGN5PSI4MCIgcj0iMzUiIHN0cm9rZT0iI0ZCQjAzQiIgc3Ryb2tlLXdpZHRoPSIxMiIgZmlsbD0ibm9uZSIvPgogIDxwYXRoIGQ9Ik0yNDUgOTAgQzI1NSAxMTAgMjg1IDkwIDI5NSA2MCIgc3Ryb2tlPSIjOENDNjNGIiBzdHJva2Utd2lkdGg9IjEyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIGZpbGw9Im5vbmUiLz4KICA8dGV4dCB4PSI1MCUiIHk9IjEzNSIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMjAiIGZvbnQtd2VpZ2h0PSI4MDAiIGZpbGw9IiM2NjYiPmluZHVzdHJpYXMgYsOhc2ljYXMgZGUgY2FsZGFzPC90ZXh0Pgo8L3N2Zz4=`;
@@ -55,5 +52,6 @@ export const NAVIGATION_ITEMS = [
   { id: 'licenses', label: 'Licencias', icon: 'fa-certificate' },
   { id: 'maintenance', label: 'Mantenimientos', icon: 'fa-screwdriver-wrench' },
   { id: 'reports', label: 'Reportes', icon: 'fa-file-csv' },
-  { id: 'credentials', label: 'Credenciales', icon: 'fa-key' }
+  { id: 'credentials', label: 'Credenciales', icon: 'fa-key', adminOnly: true }, // Restricted
+  { id: 'users', label: 'Usuarios', icon: 'fa-user-gear', adminOnly: true } // Restricted
 ];

@@ -1,3 +1,4 @@
+
 import * as React from 'react';
 import { useState } from 'react';
 import { Credential, Collaborator, Equipment } from '../../types';
@@ -109,8 +110,12 @@ const CredentialForm: React.FC<CredentialFormProps> = ({ initialData, onSubmit, 
                     className="w-full p-3 bg-white border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan transition-all appearance-none"
                 >
                     <option value="">-- Credencial General / Sin Asignar --</option>
-                    {collaborators.map(c => (
-                    <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>
+                    {collaborators
+                        .filter(c => c.isActive || c.id === formData.assignedTo) // Solo activos o el asignado actual
+                        .map(c => (
+                    <option key={c.id} value={c.id}>
+                        {c.firstName} {c.lastName} {c.isActive ? '' : '(Inactivo)'}
+                    </option>
                     ))}
                 </select>
              </div>

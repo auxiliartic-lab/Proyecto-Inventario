@@ -1,9 +1,12 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Company, Collaborator, Equipment, EquipmentStatus } from '../types';
+import { Company, Collaborator, Equipment, EquipmentStatus, SoftwareLicense, Credential } from '../types';
 import { useInventory } from '../context/InventoryContext';
+import { useAuth } from '../context/AuthContext';
 import CollaboratorForm from './forms/CollaboratorForm';
-import { generateHandoverPDF } from '../utils/pdfGenerator';
+import { generateHandoverPDF, generateLicenseHandoverPDF } from '../utils/pdfGenerator';
+import { useToast } from '../context/ToastContext';
+import * as XLSX from 'xlsx';
 
 interface CollaboratorListProps {
   company: Company;
@@ -11,18 +14,17 @@ interface CollaboratorListProps {
 }
 
 // --- AVATARES CORPORATIVOS (SVG PURO) ---
-// Usamos colores de la marca (Azules y Grises) independientemente del género para uniformidad visual
 const BusinessAvatar: React.FC<{ gender: 'Male' | 'Female', className?: string }> = ({ gender, className }) => {
   const isFemale = gender === 'Female';
   return (
     <svg viewBox="0 0 100 100" className={className} xmlns="http://www.w3.org/2000/svg" fill="none">
-      <circle cx="50" cy="50" r="50" fill="#f1f5f9" /> {/* Slate-100 */}
+      <circle cx="50" cy="50" r="50" fill="#f1f5f9" /> 
       <path 
         d={isFemale 
           ? "M50 25C42 25 36 31 36 40C36 48 42 54 50 54C58 54 64 48 64 40C64 31 58 25 50 25ZM28 84C28 70 38 62 50 62C62 62 72 70 72 84"
           : "M50 28C43 28 38 33 38 41C38 49 43 54 50 54C57 54 62 49 62 41C62 33 57 28 50 28ZM28 84C28 70 38 60 50 60C62 60 72 70 72 84"
         }
-        fill="#334155" /* Slate-700 */
+        fill="#334155" 
         opacity="0.8"
       />
       <path 
@@ -30,7 +32,7 @@ const BusinessAvatar: React.FC<{ gender: 'Male' | 'Female', className?: string }
             ? "M28 84H72C72 73 62 68 50 68C38 68 28 73 28 84Z"
             : "M28 84H72C72 72 62 66 50 66C38 66 28 72 28 84Z"
         } 
-        fill="#0072BC" /* Brand Blue Dark */
+        fill="#0072BC" 
         opacity="0.6" 
       />
     </svg>
@@ -38,7 +40,9 @@ const BusinessAvatar: React.FC<{ gender: 'Male' | 'Female', className?: string }
 };
 
 const CollaboratorList: React.FC<CollaboratorListProps> = ({ company, onNavigate }) => {
-  const { data, addCollaborator, updateCollaborator, deleteCollaborator, toggleCollaboratorStatus, setRedirectTarget } = useInventory();
+  const { data, addCollaborator, bulkAddCollaborators, updateCollaborator, deleteCollaborator, toggleCollaboratorStatus, setRedirectTarget } = useInventory();
+  const { hasPermission } = useAuth();
+  const { addToast } = useToast();
   
   // States
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -49,6 +53,10 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company, onNavigate
   const [selectedCollab, setSelectedCollab] = useState<Collaborator | null>(null);
   const [activeMenu, setActiveMenu] = useState<number | null>(null);
   
+  // Bulk Import State
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isImporting, setIsImporting] = useState(false);
+
   // Estado para Tabs del Modal
   const [detailTab, setDetailTab] = useState<'equipment' | 'licenses' | 'credentials'>('equipment');
 
@@ -103,34 +111,120 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company, onNavigate
     if (deleteConfirm.id) {
       deleteCollaborator(deleteConfirm.id);
       setDeleteConfirm({ isOpen: false, id: null });
+      addToast('Colaborador eliminado correctamente', 'success');
     }
   };
 
   const handleSubmit = (formData: Partial<Collaborator>) => {
     if (editingId && selectedCollab) {
         updateCollaborator({ ...selectedCollab, ...formData } as Collaborator);
+        addToast('Colaborador actualizado', 'success');
     } else {
         addCollaborator({ ...formData, companyId: company.id, siteId: 1 } as Omit<Collaborator, 'id'>);
+        addToast('Nuevo colaborador registrado', 'success');
     }
     setIsFormOpen(false);
     setEditingId(null);
     setSelectedCollab(null);
   };
 
+  // --- BULK IMPORT LOGIC ---
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    const reader = new FileReader();
+
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const rawData = XLSX.utils.sheet_to_json(ws);
+
+        // Transformación y Validación
+        const importedCollabs: Omit<Collaborator, 'id'>[] = [];
+        
+        rawData.forEach((row: any) => {
+           // Mapeo simple: asume columnas Nombre, Apellido, Email, Cargo, Area, Sexo
+           if (row['Nombre'] && row['Apellido'] && row['Email']) {
+              importedCollabs.push({
+                  companyId: company.id,
+                  siteId: 1, // Default por ahora
+                  firstName: row['Nombre'],
+                  lastName: row['Apellido'],
+                  email: row['Email'],
+                  cargo: row['Cargo'] || 'Sin Cargo',
+                  area: row['Area'] || 'General',
+                  sex: (row['Sexo'] === 'Femenino' || row['Sexo'] === 'F') ? 'Female' : 'Male',
+                  isActive: true
+              });
+           }
+        });
+
+        if (importedCollabs.length > 0) {
+            bulkAddCollaborators(importedCollabs);
+            addToast(`Se importaron ${importedCollabs.length} colaboradores exitosamente`, 'success');
+        } else {
+            addToast('No se encontraron datos válidos en el archivo', 'warning');
+        }
+
+      } catch (error) {
+        console.error("Error parsing Excel", error);
+        addToast('Error al procesar el archivo. Verifique el formato.', 'error');
+      } finally {
+        setIsImporting(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      }
+    };
+
+    reader.readAsBinaryString(file);
+  };
+
   const handleLocateItem = (type: 'equipment' | 'license' | 'credential', id: number) => {
-    // 1. Establecer el objetivo de redirección en el contexto
     setRedirectTarget({ type, id });
-    // 2. Navegar al módulo correspondiente
     const targetTab = type === 'equipment' ? 'equipment' : type === 'license' ? 'licenses' : 'credentials';
     onNavigate(targetTab);
   };
 
-  // Helpers de conteo
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text);
+    addToast('Copiado al portapapeles', 'success');
+  };
+
+  const handleToggleStatus = (collab: Collaborator) => {
+      toggleCollaboratorStatus(collab.id);
+      setActiveMenu(null);
+      addToast(`Colaborador ${collab.isActive ? 'desactivado' : 'activado'}`, 'info');
+  };
+
+  const handleDownloadLicensePDF = (license: SoftwareLicense, collab: Collaborator) => {
+      generateLicenseHandoverPDF(company, license, collab, 'person');
+  };
+
+  // --- DATA GETTERS ---
   const getAssignedEquipment = (collabId: number) => data.equipment.filter(e => e.assignedTo === collabId);
-  const getAssignedLicenses = (collabId: number) => data.licenses.filter(l => (l.assignedTo || []).includes(collabId));
+  
+  const getAssignedLicenses = (collabId: number) => {
+      // 1. Equipos del usuario
+      const userEquipmentIds = data.equipment
+        .filter(e => e.assignedTo === collabId)
+        .map(e => e.id);
+
+      // 2. Licencias donde:
+      // a) El usuario está en 'assignedTo' (Directa)
+      // b) O alguno de sus equipos está en 'assignedToEquipment' (Indirecta)
+      return data.licenses.filter(l => {
+          const isDirect = (l.assignedTo || []).includes(collabId);
+          const isViaEquipment = (l.assignedToEquipment || []).some(eqId => userEquipmentIds.includes(eqId));
+          return isDirect || isViaEquipment;
+      });
+  };
+  
   const getAssignedCredentials = (collabId: number) => (data.credentials || []).filter(c => c.assignedTo === collabId);
 
-  // Iconos por tipo de equipo
   const getIconForType = (type: string) => {
     switch (type) {
       case 'Laptop': return 'fa-laptop';
@@ -142,6 +236,11 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company, onNavigate
       default: return 'fa-box';
     }
   };
+
+  // Permisos
+  const canCreate = hasPermission('create');
+  const canEdit = hasPermission('edit');
+  const canDelete = hasPermission('delete');
 
   return (
     <div className="animate-in fade-in duration-500 pb-20">
@@ -170,17 +269,39 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company, onNavigate
              />
           </div>
           
-          <button 
-            onClick={handleCreate}
-            className="bg-brand-blue-cyan text-white px-4 py-2.5 rounded-xl font-bold hover:bg-brand-blue-dark transition-all shadow-lg shadow-brand-blue-cyan/10 flex items-center justify-center gap-2 shrink-0 w-auto active:scale-95 touch-manipulation h-[42px]"
-          >
-            <i className="fa-solid fa-plus"></i>
-            <span className="hidden sm:inline">Nuevo</span>
-          </button>
+          {canCreate && (
+            <>
+                {/* Botón Importar CSV */}
+                <button 
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isImporting}
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-xl font-bold transition-all shadow-lg shadow-green-600/20 flex items-center justify-center gap-2 shrink-0 w-auto active:scale-95 touch-manipulation h-[42px]"
+                    title="Importar desde Excel"
+                >
+                    {isImporting ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-file-csv"></i>}
+                    <span className="hidden lg:inline">Importar</span>
+                </button>
+                <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    className="hidden" 
+                    accept=".xlsx, .xls, .csv" 
+                    onChange={handleFileUpload}
+                />
+
+                <button 
+                    onClick={handleCreate}
+                    className="bg-brand-blue-cyan text-white px-4 py-2.5 rounded-xl font-bold hover:bg-brand-blue-dark transition-all shadow-lg shadow-brand-blue-cyan/10 flex items-center justify-center gap-2 shrink-0 w-auto active:scale-95 touch-manipulation h-[42px]"
+                >
+                    <i className="fa-solid fa-plus"></i>
+                    <span className="hidden sm:inline">Nuevo</span>
+                </button>
+            </>
+          )}
         </div>
       </div>
 
-      {/* LISTA CORPORATIVA SIMPLIFICADA (SIN STATS) */}
+      {/* LISTA CORPORATIVA */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
         {filteredCollaborators.map(collab => {
             return (
@@ -198,13 +319,19 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company, onNavigate
                             <i className="fa-solid fa-ellipsis"></i>
                         </button>
                         
-                        {/* Dropdown */}
+                        {/* Dropdown RBAC */}
                         {activeMenu === collab.id && (
                             <div ref={menuRef} className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 z-30 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                                 <button onClick={() => handleViewProfile(collab)} className="w-full text-left px-4 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50 flex gap-2"><i className="fa-solid fa-eye w-5 text-center"></i> Ver Perfil</button>
-                                <button onClick={() => handleEdit(collab)} className="w-full text-left px-4 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50 flex gap-2 border-t border-gray-50"><i className="fa-solid fa-pen w-5 text-center"></i> Editar</button>
-                                <button onClick={() => { toggleCollaboratorStatus(collab.id); setActiveMenu(null); }} className="w-full text-left px-4 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50 flex gap-2 border-t border-gray-50"><i className={`fa-solid ${collab.isActive ? 'fa-ban text-red-400' : 'fa-check text-green-500'} w-5 text-center`}></i> {collab.isActive ? 'Desactivar' : 'Activar'}</button>
-                                <button onClick={() => requestDelete(collab.id)} className="w-full text-left px-4 py-3 text-sm font-bold text-red-500 hover:bg-red-50 flex gap-2 border-t border-gray-50"><i className="fa-solid fa-trash-can w-5 text-center"></i> Eliminar</button>
+                                {canEdit && (
+                                    <>
+                                        <button onClick={() => handleEdit(collab)} className="w-full text-left px-4 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50 flex gap-2 border-t border-gray-50"><i className="fa-solid fa-pen w-5 text-center"></i> Editar</button>
+                                        <button onClick={() => handleToggleStatus(collab)} className="w-full text-left px-4 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50 flex gap-2 border-t border-gray-50"><i className={`fa-solid ${collab.isActive ? 'fa-ban text-red-400' : 'fa-check text-green-500'} w-5 text-center`}></i> {collab.isActive ? 'Desactivar' : 'Activar'}</button>
+                                    </>
+                                )}
+                                {canDelete && (
+                                    <button onClick={() => requestDelete(collab.id)} className="w-full text-left px-4 py-3 text-sm font-bold text-red-500 hover:bg-red-50 flex gap-2 border-t border-gray-50"><i className="fa-solid fa-trash-can w-5 text-center"></i> Eliminar</button>
+                                )}
                             </div>
                         )}
                     </div>
@@ -226,7 +353,7 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company, onNavigate
         })}
       </div>
 
-      {/* MODAL PERFIL ORGANIZADO */}
+      {/* MODAL PERFIL DETALLADO */}
       {isDetailOpen && selectedCollab && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm p-4 overflow-y-auto">
               <div className="bg-white rounded-xl w-full max-w-4xl shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh] overflow-hidden">
@@ -240,7 +367,14 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company, onNavigate
                               <p className="text-brand-blue-cyan font-medium text-sm">{selectedCollab.cargo}</p>
                               <div className="flex gap-4 mt-1 text-xs text-gray-400">
                                   <span><i className="fa-solid fa-building mr-1"></i> {selectedCollab.area}</span>
-                                  <span><i className="fa-solid fa-envelope mr-1"></i> {selectedCollab.email}</span>
+                                  <button 
+                                    onClick={() => handleCopy(selectedCollab.email)}
+                                    className="hover:text-white transition-colors flex items-center gap-1 cursor-pointer group"
+                                    title="Click para copiar correo"
+                                  >
+                                    <i className="fa-solid fa-envelope group-hover:text-brand-blue-cyan mr-1 transition-colors"></i> 
+                                    <span>{selectedCollab.email}</span>
+                                  </button>
                               </div>
                           </div>
                       </div>
@@ -340,7 +474,6 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company, onNavigate
                                                             <i className="fa-solid fa-file-pdf text-red-500"></i> PDF
                                                         </button>
                                                         
-                                                        {/* BOTÓN REDIRECCIÓN */}
                                                         <button 
                                                             onClick={() => handleLocateItem('equipment', eq.id)}
                                                             className="py-2 px-3 bg-brand-blue-cyan/10 text-brand-blue-cyan hover:bg-brand-blue-cyan hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
@@ -362,91 +495,133 @@ const CollaboratorList: React.FC<CollaboratorListProps> = ({ company, onNavigate
                       })()}
 
                       {/* --- TAB LICENCIAS --- */}
-                      {detailTab === 'licenses' && (
-                          <div>
-                              <div className="flex justify-between items-center mb-4">
-                                  <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest">
-                                      Software Asignado
-                                  </h3>
-                                  <span className="bg-gray-200 text-gray-600 px-2 py-0.5 rounded text-xs font-bold">{getAssignedLicenses(selectedCollab.id).length}</span>
-                              </div>
+                      {detailTab === 'licenses' && (() => {
+                          const userLicenses = getAssignedLicenses(selectedCollab.id);
+                          
+                          if (userLicenses.length === 0) {
+                              return (
+                                  <div className="text-center py-12 text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                                      <i className="fa-solid fa-certificate text-3xl mb-2 opacity-50"></i>
+                                      <p className="text-sm font-medium">No tiene licencias asignadas.</p>
+                                  </div>
+                              );
+                          }
+
+                          return (
                               <div className="space-y-3">
-                                  {getAssignedLicenses(selectedCollab.id).map(lic => (
-                                      <div key={lic.id} className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                          <div className="flex items-center gap-3">
-                                              <div className="w-10 h-10 rounded-lg bg-orange-50 text-orange-500 flex items-center justify-center border border-orange-100">
-                                                  <i className="fa-solid fa-file-signature"></i>
+                                  {userLicenses.map(license => {
+                                      // Verificar tipo de asignación
+                                      const isDirect = (license.assignedTo || []).includes(selectedCollab.id);
+                                      
+                                      // Buscar si es vía equipo
+                                      const bridgingEquipment = data.equipment.filter(e => 
+                                          e.assignedTo === selectedCollab.id && 
+                                          (license.assignedToEquipment || []).includes(e.id)
+                                      );
+
+                                      return (
+                                          <div key={license.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col gap-3 hover:border-brand-blue-cyan transition-all group">
+                                              <div className="flex justify-between items-start">
+                                                  <div>
+                                                      <h4 className="font-bold text-gray-900 text-sm">{license.name}</h4>
+                                                      <p className="text-xs text-gray-500">{license.vendor}</p>
+                                                  </div>
+                                                  <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase border ${isDirect ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-purple-50 text-purple-700 border-purple-100'}`}>
+                                                      {isDirect ? 'Asignación Directa' : 'Vía Equipo'}
+                                                  </span>
                                               </div>
-                                              <div>
-                                                  <p className="font-bold text-gray-900 text-sm">{lic.name}</p>
-                                                  <p className="text-xs text-gray-500">{lic.vendor}</p>
+
+                                              {/* Detalles */}
+                                              <div className="flex items-center gap-4 text-xs text-gray-600 bg-gray-50 p-2 rounded-lg">
+                                                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                                      <i className="fa-solid fa-key text-gray-400"></i>
+                                                      <span className="font-mono bg-white px-1.5 rounded border border-gray-200 truncate block w-full">{license.key}</span>
+                                                  </div>
+                                                  <div className="flex items-center gap-1.5 ml-auto whitespace-nowrap">
+                                                      <i className="fa-regular fa-calendar text-gray-400"></i>
+                                                      <span>Vence: {new Date(license.expirationDate).toLocaleDateString()}</span>
+                                                  </div>
                                               </div>
-                                          </div>
-                                          <div className="flex items-center justify-between md:justify-end w-full md:w-auto gap-4">
-                                              <div className="text-right">
-                                                  <span className="text-[10px] font-bold text-gray-400 uppercase block">Vence</span>
-                                                  <span className="text-xs font-bold text-gray-700">{new Date(lic.expirationDate).toLocaleDateString()}</span>
-                                              </div>
+
+                                              {/* Badge de Equipo Puente (Si es indirecta) */}
+                                              {bridgingEquipment.length > 0 && (
+                                                  <div className="flex flex-wrap gap-2 mt-1">
+                                                      {bridgingEquipment.map(eq => (
+                                                          <div key={eq.id} className="inline-flex items-center gap-1.5 px-2 py-1 bg-purple-50 border border-purple-100 rounded text-[10px] text-purple-700 font-bold">
+                                                              <i className="fa-solid fa-link"></i>
+                                                              Vinculado a: {eq.type} {eq.brand} ({eq.serialNumber})
+                                                          </div>
+                                                      ))}
+                                                  </div>
+                                              )}
                                               
-                                              {/* BOTÓN REDIRECCIÓN */}
-                                              <button 
-                                                  onClick={() => handleLocateItem('license', lic.id)}
-                                                  className="py-1.5 px-3 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
-                                              >
-                                                  <i className="fa-solid fa-crosshairs"></i> Localizar
-                                              </button>
+                                              {/* Footer con Botones */}
+                                              <div className="mt-1 pt-3 border-t border-gray-50 flex justify-between items-center">
+                                                   <button 
+                                                      onClick={() => handleLocateItem('license', license.id)}
+                                                      className="text-[10px] font-bold text-gray-400 hover:text-brand-blue-cyan flex items-center gap-1.5"
+                                                   >
+                                                      <i className="fa-solid fa-arrow-up-right-from-square"></i> Ver Licencia
+                                                   </button>
+
+                                                   <button 
+                                                      onClick={() => handleDownloadLicensePDF(license, selectedCollab)}
+                                                      className="text-[10px] font-bold text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-2"
+                                                  >
+                                                      <i className="fa-solid fa-file-pdf"></i> Acta de Entrega
+                                                  </button>
+                                              </div>
                                           </div>
-                                      </div>
-                                  ))}
-                                  {getAssignedLicenses(selectedCollab.id).length === 0 && (
-                                      <div className="text-center py-8 text-gray-400 bg-gray-50 rounded-lg border border-dashed">
-                                          Sin licencias asignadas.
-                                      </div>
-                                  )}
+                                      );
+                                  })}
                               </div>
-                          </div>
-                      )}
+                          );
+                      })()}
 
                       {/* --- TAB CREDENCIALES --- */}
-                      {detailTab === 'credentials' && (
-                          <div>
-                              <div className="flex justify-between items-center mb-4">
-                                  <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest">
-                                      Accesos y Cuentas
-                                  </h3>
-                                  <span className="bg-gray-200 text-gray-600 px-2 py-0.5 rounded text-xs font-bold">{getAssignedCredentials(selectedCollab.id).length}</span>
-                              </div>
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                  {getAssignedCredentials(selectedCollab.id).map(cred => (
-                                      <div key={cred.id} className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-                                          <div className="flex items-start gap-3 mb-3">
-                                              <i className="fa-solid fa-key text-gray-300 mt-1"></i>
-                                              <div>
-                                                  <p className="font-bold text-gray-900 text-sm">{cred.service}</p>
-                                                  <p className="text-xs text-gray-500 italic">{cred.description || 'Sin descripción'}</p>
+                      {detailTab === 'credentials' && (() => {
+                          const userCredentials = getAssignedCredentials(selectedCollab.id);
+
+                          if (userCredentials.length === 0) {
+                              return (
+                                  <div className="text-center py-12 text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                                      <i className="fa-solid fa-key text-3xl mb-2 opacity-50"></i>
+                                      <p className="text-sm font-medium">No tiene credenciales asignadas.</p>
+                                  </div>
+                              );
+                          }
+
+                          return (
+                              <div className="space-y-3">
+                                  {userCredentials.map(cred => (
+                                      <div key={cred.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col gap-2 hover:border-brand-blue-cyan transition-all">
+                                          <div className="flex justify-between items-start">
+                                              <div className="flex items-center gap-3">
+                                                  <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500">
+                                                      <i className="fa-solid fa-shield-halved"></i>
+                                                  </div>
+                                                  <div>
+                                                      <h4 className="font-bold text-gray-900 text-sm">{cred.service}</h4>
+                                                      <p className="text-xs text-gray-500">Usuario: <span className="font-mono text-gray-700">{cred.username}</span></p>
+                                                  </div>
                                               </div>
-                                          </div>
-                                          <div className="flex items-center justify-between pt-2 border-t border-gray-50 mt-2">
-                                              <span className="text-xs font-mono text-gray-600">{cred.username}</span>
-                                              
-                                              {/* BOTÓN REDIRECCIÓN */}
                                               <button 
                                                   onClick={() => handleLocateItem('credential', cred.id)}
-                                                  className="py-1 px-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-md text-[10px] font-bold transition-all flex items-center gap-1"
+                                                  className="text-xs font-bold text-brand-blue-cyan hover:bg-brand-blue-cyan/10 px-3 py-1.5 rounded-lg transition-colors"
                                               >
-                                                  <i className="fa-solid fa-crosshairs"></i> Ir
+                                                  Ver Password
                                               </button>
                                           </div>
+                                          {cred.description && (
+                                              <p className="text-[10px] text-gray-400 italic border-l-2 border-gray-100 pl-2 mt-1">
+                                                  {cred.description}
+                                              </p>
+                                          )}
                                       </div>
                                   ))}
                               </div>
-                              {getAssignedCredentials(selectedCollab.id).length === 0 && (
-                                  <div className="text-center py-8 text-gray-400 bg-gray-50 rounded-lg border border-dashed">
-                                      Sin credenciales asignadas.
-                                  </div>
-                              )}
-                          </div>
-                      )}
+                          );
+                      })()}
 
                   </div>
                   

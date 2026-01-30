@@ -40,8 +40,7 @@ const LicenseForm: React.FC<LicenseFormProps> = ({
   onSubmit, 
   onCancel, 
   isEditing, 
-  collaborators, 
-  equipmentList 
+  collaborators
 }) => {
   const defaultData: Partial<SoftwareLicense> = {
     name: '',
@@ -69,11 +68,10 @@ const LicenseForm: React.FC<LicenseFormProps> = ({
     }
   }, [initialData]);
 
-  const [assignType, setAssignType] = useState<'person' | 'device'>('person');
   const [error, setError] = useState<string | null>(null);
 
-  // Helper para contar total de asignaciones
-  const totalAssignedCount = (formData.assignedTo?.length || 0) + (formData.assignedToEquipment?.length || 0);
+  // Helper para contar total de asignaciones (SOLO USUARIOS en este form)
+  const usersAssignedCount = formData.assignedTo?.length || 0;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,46 +90,35 @@ const LicenseForm: React.FC<LicenseFormProps> = ({
         }
     }
 
-    // Validación de cupos
-    if (totalAssignedCount > (formData.totalSlots || 1)) {
-        setError(`No puede asignar más usuarios/equipos que la cantidad de cupos disponibles (${formData.totalSlots}).`);
+    // Validación de cupos (Solo Usuarios, ya que cupos equipos son independientes)
+    if (usersAssignedCount > (formData.totalSlots || 1)) {
+        setError(`No puede asignar más usuarios que la cantidad de cupos disponibles (${formData.totalSlots}).`);
         return;
     }
 
-    // Enviar datos sin borrar asignaciones cruzadas
+    // Enviar datos
     onSubmit(formData);
   };
 
-  // Handlers para agregar/quitar asignaciones
+  // Handlers para agregar/quitar asignaciones (SOLO PERSONAS)
   const addAssignment = (idStr: string) => {
     if (!idStr) return;
     const id = Number(idStr);
     
     // Verificar cupos totales
-    if (totalAssignedCount >= (formData.totalSlots || 1)) {
-       setError("No hay cupos disponibles. Aumente el total de cupos.");
+    if (usersAssignedCount >= (formData.totalSlots || 1)) {
+       setError("No hay cupos de usuarios disponibles. Aumente el total de cupos.");
        return;
     }
 
-    if (assignType === 'person') {
-       if (!formData.assignedTo?.includes(id)) {
-           setFormData({...formData, assignedTo: [...(formData.assignedTo || []), id]});
-           setError(null);
-       }
-    } else {
-       if (!formData.assignedToEquipment?.includes(id)) {
-           setFormData({...formData, assignedToEquipment: [...(formData.assignedToEquipment || []), id]});
-           setError(null);
-       }
+    if (!formData.assignedTo?.includes(id)) {
+        setFormData({...formData, assignedTo: [...(formData.assignedTo || []), id]});
+        setError(null);
     }
   };
 
-  const removeAssignment = (id: number, type: 'person' | 'device') => {
-    if (type === 'person') {
-       setFormData({...formData, assignedTo: (formData.assignedTo || []).filter(aid => aid !== id)});
-    } else {
-       setFormData({...formData, assignedToEquipment: (formData.assignedToEquipment || []).filter(aid => aid !== id)});
-    }
+  const removeAssignment = (id: number) => {
+     setFormData({...formData, assignedTo: (formData.assignedTo || []).filter(aid => aid !== id)});
   };
 
   // Limpiar error al cambiar la key
@@ -206,7 +193,7 @@ const LicenseForm: React.FC<LicenseFormProps> = ({
             />
         </div>
         <div>
-            <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Cupos / Total</label>
+            <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Cupos Totales</label>
             <input 
             required
             type="number"
@@ -214,55 +201,48 @@ const LicenseForm: React.FC<LicenseFormProps> = ({
             value={formData.totalSlots}
             onChange={e => setFormData({...formData, totalSlots: parseInt(e.target.value) || 1})}
             className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan font-bold text-center" 
+            title="Cupos disponibles independientemente para Usuarios y Equipos"
             />
         </div>
       </div>
 
-      {/* SECCIÓN DE ASIGNACIÓN MULTIPLE MIXTA */}
+      {/* SECCIÓN DE ASIGNACIÓN (SOLO COLABORADORES) */}
       <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
          <div className="flex gap-4 mb-4 border-b border-gray-200 pb-2">
-            <button
-               type="button"
-               onClick={() => setAssignType('person')}
-               className={`text-xs font-bold uppercase tracking-wider pb-1 transition-colors flex items-center gap-2 ${assignType === 'person' ? 'text-brand-blue-cyan border-b-2 border-brand-blue-cyan' : 'text-gray-400 hover:text-gray-600'}`}
-            >
-               <i className="fa-solid fa-user"></i> Personas ({formData.assignedTo?.length || 0})
-            </button>
-            <button
-               type="button"
-               onClick={() => setAssignType('device')}
-               className={`text-xs font-bold uppercase tracking-wider pb-1 transition-colors flex items-center gap-2 ${assignType === 'device' ? 'text-brand-blue-cyan border-b-2 border-brand-blue-cyan' : 'text-gray-400 hover:text-gray-600'}`}
-            >
-               <i className="fa-solid fa-laptop"></i> Equipos ({formData.assignedToEquipment?.length || 0})
-            </button>
+            <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 flex items-center gap-2">
+               <i className="fa-solid fa-user"></i> Asignar Colaboradores
+            </h4>
+            <span className="text-[10px] text-gray-400 font-bold bg-white px-2 py-1 rounded border border-gray-200">
+                Ocupado: {usersAssignedCount} / {formData.totalSlots}
+            </span>
+         </div>
+
+         {/* Aviso sobre Equipos */}
+         <div className="mb-3 bg-blue-50 border border-blue-100 p-2 rounded text-[10px] text-blue-700 flex gap-2 items-center">
+            <i className="fa-solid fa-info-circle"></i>
+            <span>Para asignar licencias a <b>Equipos</b>, hágalo desde el módulo de <b>Equipos</b>.</span>
          </div>
 
          {/* Selector de Asignación */}
          <div className="mb-3">
             <div className="relative">
-                <i className={`fa-solid ${assignType === 'person' ? 'fa-user-plus' : 'fa-laptop-medical'} absolute left-3 top-1/2 -translate-y-1/2 text-gray-400`}></i>
+                <i className="fa-solid fa-user-plus absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
                 <select 
                     value=""
                     onChange={(e) => addAssignment(e.target.value)}
                     className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-brand-blue-cyan appearance-none text-sm font-bold text-gray-600"
                 >
-                    <option value="">{assignType === 'person' ? 'Agregar colaborador...' : 'Agregar equipo...'}</option>
-                    {assignType === 'person' 
-                        ? collaborators
-                            .filter(c => !(formData.assignedTo || []).includes(c.id))
-                            .map(c => <option key={c.id} value={c.id}>{c.firstName} {c.lastName} | {c.cargo}</option>)
-                        : equipmentList
-                            .filter(e => !(formData.assignedToEquipment || []).includes(e.id))
-                            .map(e => <option key={e.id} value={e.id}>{e.type} - {e.brand} {e.model} ({e.serialNumber})</option>)
+                    <option value="">Seleccionar colaborador...</option>
+                    {collaborators
+                        .filter(c => c.isActive) // Solo activos pueden asignarse
+                        .filter(c => !(formData.assignedTo || []).includes(c.id))
+                        .map(c => <option key={c.id} value={c.id}>{c.firstName} {c.lastName} | {c.cargo}</option>)
                     }
                 </select>
             </div>
-            <p className="text-[10px] text-gray-400 mt-1 text-right">
-                Total Asignados: {totalAssignedCount} / {formData.totalSlots}
-            </p>
          </div>
 
-         {/* Lista de Chips/Tags (Se muestran TODOS para evitar confusión de "borrado") */}
+         {/* Lista de Chips/Tags */}
          <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto custom-scrollbar p-1">
              {/* Personas Asignadas */}
              {(formData.assignedTo || []).map(id => {
@@ -274,30 +254,25 @@ const LicenseForm: React.FC<LicenseFormProps> = ({
                              {c.firstName[0]}{c.lastName[0]}
                          </div>
                          <span className="text-xs font-bold text-gray-700">{c.firstName} {c.lastName}</span>
-                         <button type="button" onClick={() => removeAssignment(id, 'person')} className="w-5 h-5 rounded-full hover:bg-red-50 hover:text-red-500 text-gray-400 flex items-center justify-center transition-colors">
+                         <button type="button" onClick={() => removeAssignment(id)} className="w-5 h-5 rounded-full hover:bg-red-50 hover:text-red-500 text-gray-400 flex items-center justify-center transition-colors">
                              <i className="fa-solid fa-times text-[10px]"></i>
                          </button>
                      </div>
                  );
              })}
 
-             {/* Equipos Asignados */}
+             {/* Equipos Asignados (Solo lectura) */}
              {(formData.assignedToEquipment || []).map(id => {
-                 const e = equipmentList.find(eq => eq.id === id);
-                 if (!e) return null;
                  return (
-                    <div key={`e-${id}`} className="bg-white border border-gray-200 rounded-full pl-3 pr-1 py-1 flex items-center gap-2 shadow-sm animate-in zoom-in-95 duration-200">
-                        <i className="fa-solid fa-laptop text-gray-400 text-xs"></i>
-                        <span className="text-xs font-bold text-gray-700">{e.brand} {e.model}</span>
-                        <button type="button" onClick={() => removeAssignment(id, 'device')} className="w-5 h-5 rounded-full hover:bg-red-50 hover:text-red-500 text-gray-400 flex items-center justify-center transition-colors">
-                            <i className="fa-solid fa-times text-[10px]"></i>
-                        </button>
+                    <div key={`e-${id}`} className="bg-gray-100 border border-gray-300 rounded-full pl-3 pr-3 py-1 flex items-center gap-2 opacity-70 cursor-not-allowed" title="Gestione equipos desde el módulo Equipos">
+                        <i className="fa-solid fa-laptop text-gray-500 text-xs"></i>
+                        <span className="text-xs font-bold text-gray-500">Equipo #{id} (Vinculado)</span>
                     </div>
                  );
              })}
 
-             {totalAssignedCount === 0 && (
-                 <span className="text-xs text-gray-400 italic w-full text-center py-2">No hay asignaciones seleccionadas.</span>
+             {usersAssignedCount === 0 && (
+                 <span className="text-xs text-gray-400 italic w-full text-center py-2">No hay asignaciones.</span>
              )}
          </div>
       </div>

@@ -1,9 +1,8 @@
 
-import 'react';
+import React from 'react';
 
 export enum UserRole {
   ADMIN = 'Administrador',
-  TECHNICIAN = 'Técnico',
   CONSULTANT = 'Consultor'
 }
 
@@ -15,6 +14,16 @@ export enum EquipmentStatus {
 }
 
 export type MaintenanceSeverity = 'Moderate' | 'Severe' | 'TotalLoss';
+
+export interface User {
+  id: number;
+  username: string;
+  name: string;
+  role: UserRole;
+  avatar?: string;
+  pin?: string; // Contraseña/PIN de acceso
+  collaboratorId?: number; // Vínculo con la ficha de colaborador (Datos reales, equipos, etc.)
+}
 
 export interface Company {
   id: number;
@@ -62,17 +71,15 @@ export interface Equipment {
   peripheralType?: string; 
 }
 
-// NUEVA INTERFAZ PARA HISTORIAL
 export interface EquipmentHistory {
   id: number;
   equipmentId: number;
   date: string; // ISO String
   actionType: 'CREATION' | 'ASSIGNMENT' | 'UNASSIGNMENT' | 'STATUS_CHANGE' | 'MAINTENANCE' | 'UPDATE';
   description: string;
-  user?: string; // Quién realizó la acción (simulado como 'Admin')
+  user?: string; // Quién realizó la acción
 }
 
-// NUEVA INTERFAZ PARA ADJUNTOS
 export interface Attachment {
   id: string;
   name: string;
@@ -121,10 +128,46 @@ export interface Credential {
   assignedToEquipment?: number; // Nueva: Asignación a Equipo
 }
 
-// Fix: Add explicit JSX.IntrinsicElements definition to suppress TS errors about HTML tags
+// Global augmentation to fix missing JSX.IntrinsicElements definitions
 declare global {
   namespace JSX {
     interface IntrinsicElements {
+      div: any;
+      span: any;
+      p: any;
+      i: any;
+      img: any;
+      h1: any;
+      h2: any;
+      h3: any;
+      h4: any;
+      button: any;
+      input: any;
+      label: any;
+      select: any;
+      option: any;
+      textarea: any;
+      form: any;
+      table: any;
+      thead: any;
+      tbody: any;
+      tr: any;
+      th: any;
+      td: any;
+      header: any;
+      main: any;
+      section: any;
+      nav: any;
+      aside: any;
+      br: any;
+      code: any;
+      b: any;
+      strong: any;
+      style: any;
+      svg: any;
+      path: any;
+      circle: any;
+      datalist: any;
       [elemName: string]: any;
     }
   }

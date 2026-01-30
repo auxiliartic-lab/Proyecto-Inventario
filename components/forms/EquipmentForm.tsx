@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Equipment, EquipmentStatus, Collaborator } from '../../types';
+import { Equipment, EquipmentStatus, Collaborator, SoftwareLicense } from '../../types';
 
 // Datos de sugerencias (Movidos desde EquipmentList)
 const SUGGESTIONS_DB = {
@@ -65,9 +65,10 @@ const SUGGESTIONS_DB = {
 interface EquipmentFormProps {
   initialData?: Partial<Equipment>;
   existingEquipment: Equipment[]; 
-  onSubmit: (data: Partial<Equipment>, generatePdf?: boolean) => void;
+  onSubmit: (data: Partial<Equipment>, generatePdf?: boolean, selectedLicenseIds?: number[]) => void;
   onCancel: () => void;
   collaborators: Collaborator[];
+  licenses?: SoftwareLicense[]; // Add licenses prop
   isEditing: boolean;
 }
 
@@ -77,6 +78,7 @@ const EquipmentForm: React.FC<EquipmentFormProps> = ({
   onSubmit, 
   onCancel, 
   collaborators, 
+  licenses = [], // Default empty
   isEditing 
 }) => {
   const defaultData: Partial<Equipment> = {
@@ -85,7 +87,7 @@ const EquipmentForm: React.FC<EquipmentFormProps> = ({
     model: '',
     serialNumber: '',
     status: EquipmentStatus.ACTIVE,
-    location: '',
+    location: 'Bodega TI', // Default location
     processor: '',
     ram: '',
     storage: '',
@@ -98,6 +100,19 @@ const EquipmentForm: React.FC<EquipmentFormProps> = ({
   const [formData, setFormData] = useState<Partial<Equipment>>(initialData || defaultData);
   const [error, setError] = useState<string | null>(null); 
   const [generatePdf, setGeneratePdf] = useState(false);
+  
+  // Estado para licencias seleccionadas
+  const [selectedLicenseIds, setSelectedLicenseIds] = useState<number[]>([]);
+
+  // Cargar licencias vinculadas inicialmente si se está editando
+  useEffect(() => {
+    if (initialData?.id && licenses.length > 0) {
+      const assignedIds = licenses
+        .filter(l => (l.assignedToEquipment || []).includes(initialData.id!))
+        .map(l => l.id);
+      setSelectedLicenseIds(assignedIds);
+    }
+  }, [initialData, licenses]);
 
   const getCategoryFromType = (type: string): 'Computer' | 'Server' | 'Mobile' | 'Peripheral' => {
      if (['Laptop', 'Desktop'].includes(type)) return 'Computer';
@@ -147,8 +162,18 @@ const EquipmentForm: React.FC<EquipmentFormProps> = ({
       cleanedData.peripheralType = '';
     }
     
-    // Pasar indicador de PDF al submit
-    onSubmit(cleanedData, generatePdf);
+    // Pasar indicador de PDF y licencias seleccionadas
+    onSubmit(cleanedData, generatePdf, selectedLicenseIds);
+  };
+
+  const toggleLicense = (id: number) => {
+    setSelectedLicenseIds(prev => {
+      if (prev.includes(id)) {
+        return prev.filter(lid => lid !== id);
+      } else {
+        return [...prev, id];
+      }
+    });
   };
 
   // Limpiar error al cambiar el serial
@@ -310,6 +335,55 @@ const EquipmentForm: React.FC<EquipmentFormProps> = ({
         </div>
       )}
 
+      {/* SECCIÓN ASIGNACIÓN LICENCIAS */}
+      <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 animate-in fade-in slide-in-from-top-2">
+          <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2 mb-4">
+            <i className="fa-solid fa-certificate text-brand-blue-cyan"></i>
+            Licencias de Software
+          </h3>
+          
+          <div className="max-h-40 overflow-y-auto custom-scrollbar border border-slate-200 rounded-lg bg-white p-2 space-y-1">
+              {licenses.map(lic => {
+                  // Contar solo equipos para no mezclar con cupos de usuarios
+                  const used = lic.assignedToEquipment?.length || 0;
+                  const total = lic.totalSlots || 1;
+                  const isAssignedToThis = selectedLicenseIds.includes(lic.id);
+                  const isFull = used >= total && !isAssignedToThis;
+
+                  return (
+                      <label 
+                        key={lic.id} 
+                        className={`flex items-center justify-between p-2 rounded-md transition-all ${
+                            isFull ? 'opacity-50 cursor-not-allowed bg-gray-50' : 'cursor-pointer hover:bg-slate-50'
+                        }`}
+                      >
+                          <div className="flex items-center gap-3">
+                              <input 
+                                type="checkbox" 
+                                checked={isAssignedToThis}
+                                onChange={() => toggleLicense(lic.id)}
+                                disabled={isFull}
+                                className="w-4 h-4 text-brand-blue-cyan rounded border-slate-300 focus:ring-brand-blue-cyan"
+                              />
+                              <div className="flex flex-col">
+                                  <span className={`text-xs font-bold ${isFull ? 'text-gray-400' : 'text-gray-700'}`}>{lic.name}</span>
+                                  <span className="text-[10px] text-gray-400">{lic.type}</span>
+                              </div>
+                          </div>
+                          <div className="text-right">
+                              <span className={`text-[10px] font-bold ${isFull ? 'text-red-400' : 'text-slate-400'}`}>
+                                  {used}/{total} Cupos Eq.
+                              </span>
+                          </div>
+                      </label>
+                  );
+              })}
+              {licenses.length === 0 && (
+                  <p className="text-xs text-gray-400 text-center py-4">No hay licencias registradas.</p>
+              )}
+          </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <div>
           <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">Estado</label>
@@ -329,14 +403,37 @@ const EquipmentForm: React.FC<EquipmentFormProps> = ({
           <select 
             value={formData.assignedTo || ''}
             onChange={(e) => {
-                setFormData({...formData, assignedTo: e.target.value ? Number(e.target.value) : undefined});
-                if (!e.target.value) setGeneratePdf(false); // Resetear si se desasigna
+                const assignedId = e.target.value ? Number(e.target.value) : undefined;
+                let newLocation = formData.location; // Mantener location actual si no se asigna
+                
+                // --- LÓGICA DE ACTUALIZACIÓN DE UBICACIÓN ---
+                if (assignedId) {
+                    const assignedUser = collaborators.find(c => c.id === assignedId);
+                    if (assignedUser) {
+                        // Actualizar ubicación automáticamente al área del usuario
+                        newLocation = assignedUser.area; 
+                    }
+                } else {
+                    // Si se desasigna, sugerir "Bodega TI" si no tenía valor previo manual relevante
+                    if (newLocation === '' || !newLocation) newLocation = 'Bodega TI';
+                    setGeneratePdf(false); // Resetear PDF si se desasigna
+                }
+
+                setFormData({
+                    ...formData, 
+                    assignedTo: assignedId,
+                    location: newLocation
+                });
             }}
             className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-brand-blue-cyan/10 focus:border-brand-blue-cyan font-bold text-sm transition-all"
           >
             <option value="">-- Sin Asignar (Equipo en Stock) --</option>
-            {collaborators.map(c => (
-              <option key={c.id} value={c.id}>{c.firstName} {c.lastName} | {c.cargo}</option>
+            {collaborators
+                .filter(c => c.isActive || c.id === formData.assignedTo) // Solo activos o el asignado actual
+                .map(c => (
+              <option key={c.id} value={c.id}>
+                  {c.firstName} {c.lastName} | {c.cargo} {c.isActive ? '' : '(Inactivo)'}
+              </option>
             ))}
           </select>
           
@@ -358,15 +455,28 @@ const EquipmentForm: React.FC<EquipmentFormProps> = ({
         </div>
       </div>
 
-      <div>
-          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">Fecha de Ingreso</label>
-          <input 
-            type="date" 
-            required
-            value={formData.purchaseDate}
-            onChange={(e) => setFormData({...formData, purchaseDate: e.target.value})}
-            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-brand-blue-cyan/10 focus:border-brand-blue-cyan font-bold text-sm transition-all" 
-          />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div>
+              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">Ubicación Actual</label>
+              <input 
+                type="text" 
+                required
+                value={formData.location}
+                onChange={(e) => setFormData({...formData, location: e.target.value})}
+                placeholder={formData.assignedTo ? "Área del usuario..." : "Ej: Bodega TI, Almacén..."}
+                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-brand-blue-cyan/10 focus:border-brand-blue-cyan font-bold text-sm transition-all" 
+              />
+          </div>
+          <div>
+              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">Fecha de Ingreso</label>
+              <input 
+                type="date" 
+                required
+                value={formData.purchaseDate}
+                onChange={(e) => setFormData({...formData, purchaseDate: e.target.value})}
+                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-brand-blue-cyan/10 focus:border-brand-blue-cyan font-bold text-sm transition-all" 
+              />
+          </div>
       </div>
 
       <div className="pt-4 flex flex-row gap-4">
