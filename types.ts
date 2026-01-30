@@ -132,16 +132,22 @@ export interface Credential {
 declare global {
   namespace JSX {
     interface IntrinsicElements {
+      [elemName: string]: any;
       div: any;
       span: any;
       p: any;
       i: any;
+      b: any;
+      strong: any;
+      button: any;
+      a: any;
       img: any;
       h1: any;
       h2: any;
       h3: any;
       h4: any;
-      button: any;
+      h5: any;
+      h6: any;
       input: any;
       label: any;
       select: any;
@@ -154,21 +160,21 @@ declare global {
       tr: any;
       th: any;
       td: any;
+      ul: any;
+      li: any;
+      nav: any;
       header: any;
       main: any;
-      section: any;
-      nav: any;
+      footer: any;
       aside: any;
-      br: any;
+      section: any;
       code: any;
-      b: any;
-      strong: any;
+      br: any;
       style: any;
+      datalist: any;
       svg: any;
       path: any;
       circle: any;
-      datalist: any;
-      [elemName: string]: any;
     }
   }
 }

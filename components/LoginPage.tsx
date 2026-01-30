@@ -59,7 +59,6 @@ const LoginPage: React.FC = () => {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-blue-cyan transition-all font-medium text-gray-700 placeholder-gray-400"
-                  placeholder="Ej: admin, tech, viewer"
                   required
                 />
               </div>
@@ -95,13 +94,6 @@ const LoginPage: React.FC = () => {
               )}
             </button>
           </form>
-
-          <div className="mt-8 pt-6 border-t border-gray-100 text-center">
-             <p className="text-xs text-gray-400">
-               <i className="fa-solid fa-circle-info mr-1"></i>
-               Demo Credentials: <span className="font-mono bg-gray-100 px-1 rounded">admin / 0000</span>
-             </p>
-          </div>
         </div>
       </div>
     </div>
