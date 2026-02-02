@@ -23,8 +23,19 @@ const LoginPage: React.FC = () => {
         addToast('Credenciales incorrectas', 'error');
         setPin(''); // Limpiar solo el PIN
       }
-    } catch (error) {
-      addToast('Error de conexión', 'error');
+    } catch (error: any) {
+      console.error("Login component caught error:", error);
+      
+      if (error.response && error.response.status === 404) {
+          addToast('Error: No se encuentra el servicio de autenticación (Ruta /api/login no encontrada).', 'error');
+      } else if (error.response && error.response.status === 401) {
+          addToast('Credenciales incorrectas.', 'error');
+          setPin('');
+      } else if (error.code === 'ERR_NETWORK') {
+          addToast('Error de red: No se pudo conectar al servidor backend (127.0.0.1:8000).', 'error');
+      } else {
+          addToast('Error de conexión o servidor', 'error');
+      }
     } finally {
       setIsLoading(false);
     }

@@ -6,7 +6,8 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   server: {
-    host: true, // Expone el servidor a la red local si es necesario
-    port: 5173
+    host: true, // Needed for network access
+    port: 5173,
+    // Proxy eliminado. La conexión ahora es directa vía URL absoluta en services/api.ts
   }
 });

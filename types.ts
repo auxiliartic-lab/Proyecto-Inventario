@@ -21,6 +21,7 @@ export interface User {
   name: string;
   role: UserRole;
   avatar?: string;
+  email?: string; // Added email property
   pin?: string; // Contraseña/PIN de acceso
   collaboratorId?: number; // Vínculo con la ficha de colaborador (Datos reales, equipos, etc.)
 }

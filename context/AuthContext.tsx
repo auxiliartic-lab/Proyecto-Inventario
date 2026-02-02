@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, UserRole } from '../types';
-import { loadData } from '../services/inventoryService';
+import { authService } from '../services/api';
 
 interface AuthContextType {
   user: User | null;
@@ -16,39 +16,57 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
 
-  // Cargar sesión del localStorage al iniciar
+  // Check auth on mount
   useEffect(() => {
-    const storedUser = localStorage.getItem('inventory_user_session');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
+    const checkAuth = async () => {
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        try {
+          const userData = await authService.me();
+          setUser(userData);
+        } catch (error) {
+          console.error("Auth check failed", error);
+          logout();
+        }
+      }
+    };
+    checkAuth();
   }, []);
 
   const login = async (username: string, pin: string): Promise<boolean> => {
-    // Leemos directamente del servicio para obtener los usuarios actualizados
-    // Esto evita la dependencia circular con InventoryContext
-    const appData = loadData();
-    const users = appData.users || [];
-
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const foundUser = users.find(u => u.username.toLowerCase() === username.toLowerCase());
+    try {
+      const response = await authService.login(username, pin);
+      
+      if (response.token && response.user) {
+        localStorage.setItem('auth_token', response.token);
+        // The API returns the user in snake_case, but our authService.me() uses the adapter.
+        // For login, we might need to adapt manually or re-fetch.
+        // Let's assume response.user is the raw data, so we adapt it.
+        // Or simpler: fetch user profile after login to be safe.
+        localStorage.setItem('inventory_user_session', JSON.stringify(response.user));
         
-        // Validación simple de PIN
-        if (foundUser && foundUser.pin === pin) {
-          setUser(foundUser);
-          localStorage.setItem('inventory_user_session', JSON.stringify(foundUser));
-          resolve(true);
-        } else {
-          resolve(false);
-        }
-      }, 500); 
-    });
+        // Refresh user data from /me endpoint to ensure correct adaptation
+        const fullUser = await authService.me();
+        setUser(fullUser);
+        
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Login failed", error);
+      throw error; // Rethrow to let caller handle network errors vs auth errors
+    }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+        await authService.logout();
+    } catch (e) {
+        // Ignore error on logout
+    }
     setUser(null);
     localStorage.removeItem('inventory_user_session');
+    localStorage.removeItem('auth_token');
   };
 
   // RBAC: Control de Acceso Basado en Roles

@@ -222,7 +222,7 @@ export const generateLicenseHandoverPDF = async (
     styles: { fontSize: 10, cellPadding: 2 },
     columnStyles: {
       0: { fontStyle: 'bold', cellWidth: 60 },
-      1: { cellWidth: 'auto', fontStyle: 'mono' }
+      1: { cellWidth: 'auto', font: 'courier' }
     }
   });
 

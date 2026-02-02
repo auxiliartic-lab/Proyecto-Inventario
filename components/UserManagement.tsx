@@ -7,7 +7,7 @@ import { useToast } from '../context/ToastContext';
 import UserForm from './forms/UserForm';
 
 const UserManagement: React.FC = () => {
-  const { data, addUser, updateUser, deleteUser, exportDatabase } = useInventory();
+  const { data, addUser, updateUser, deleteUser } = useInventory();
   const { user: currentUser } = useAuth();
   const { addToast } = useToast();
 
@@ -34,18 +34,14 @@ const UserManagement: React.FC = () => {
   };
 
   const handleEditRequest = (u: User) => {
-    // Si el usuario a editar es el Super Admin
     if (u.id === SUPER_ADMIN_ID) {
-        // Si yo soy el Super Admin, puedo editarme directo
         if (currentUser?.id === SUPER_ADMIN_ID) {
             startEdit(u);
         } else {
-            // Si soy otro admin, necesito el código maestro
             setMasterCodeInput('');
             setSecurityChallenge({ isOpen: true, targetUser: u });
         }
     } else {
-        // Edición normal para otros usuarios
         startEdit(u);
     }
   };
@@ -72,7 +68,6 @@ const UserManagement: React.FC = () => {
 
   const handleSubmit = (formData: Partial<User>) => {
     if (editingId && selectedUser) {
-        // Mantener PIN anterior si viene vacío en edición
         const finalPin = formData.pin ? formData.pin : selectedUser.pin;
         updateUser({ ...selectedUser, ...formData, pin: finalPin } as User);
         addToast('Usuario actualizado correctamente', 'success');
@@ -88,7 +83,6 @@ const UserManagement: React.FC = () => {
         addToast('No es posible eliminar al Administrador Principal.', 'error');
         return;
     }
-    // Evitar que se borre a sí mismo
     if (currentUser?.id === id) {
         addToast('No puedes eliminar tu propia cuenta.', 'error');
         return;
@@ -102,11 +96,6 @@ const UserManagement: React.FC = () => {
       setDeleteConfirm({ isOpen: false, id: null });
       addToast('Usuario eliminado', 'success');
     }
-  };
-
-  const handleBackup = () => {
-      exportDatabase();
-      addToast('Copia de seguridad descargada', 'success');
   };
 
   return (
@@ -125,24 +114,6 @@ const UserManagement: React.FC = () => {
             <i className="fa-solid fa-user-plus"></i>
             Nuevo Usuario
         </button>
-      </div>
-
-      {/* SEGURIDAD & BACKUP */}
-      <div className="mb-8 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl p-6 text-white shadow-lg flex items-center justify-between">
-              <div>
-                  <h3 className="font-bold text-lg mb-1 flex items-center gap-2">
-                      <i className="fa-solid fa-database text-brand-blue-cyan"></i> Copia de Seguridad
-                  </h3>
-                  <p className="text-xs text-gray-400">Descargue toda la base de datos local (JSON) para evitar pérdida de información.</p>
-              </div>
-              <button 
-                onClick={handleBackup}
-                className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-bold transition-all border border-white/10"
-              >
-                  Descargar
-              </button>
-          </div>
       </div>
 
       {/* USER LIST */}
@@ -203,7 +174,6 @@ const UserManagement: React.FC = () => {
                                         <i className={`fa-solid ${isSuperAdmin && currentUser?.id !== SUPER_ADMIN_ID ? 'fa-lock' : 'fa-pen-to-square'}`}></i>
                                     </button>
                                     
-                                    {/* No permitir borrar al usuario actual ni al super admin */}
                                     {currentUser?.id !== u.id && u.id !== SUPER_ADMIN_ID && (
                                         <button 
                                             onClick={() => requestDelete(u.id)}

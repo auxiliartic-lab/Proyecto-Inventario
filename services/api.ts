@@ -1,99 +1,115 @@
 
 import axios from 'axios';
-import { 
-  User, Equipment, Collaborator, SoftwareLicense, 
-  MaintenanceRecord, Credential, Company 
-} from '../types';
+import * as Adapter from '../utils/apiAdapters';
 
-// Configuración base
-const api = axios.create({
-  baseURL: (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000/api',
-  headers: {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
+// --- API CONFIGURATION ---
+// CAMBIO CRITICO: Usamos la URL absoluta directa.
+// Esto elimina el error "Invalid URL" porque Axios no tiene que adivinar el dominio.
+// Asegúrate de que tu Laravel corre en el puerto 8000.
+const API_URL = 'http://127.0.0.1:8000/api';
+
+const axiosInstance = axios.create({
+  baseURL: API_URL,
+  headers: { 
+    'Content-Type': 'application/json', 
+    'Accept': 'application/json' 
   },
-  withCredentials: true, // Necesario para Laravel Sanctum
+  withCredentials: true, // Crucial para Sanctum (Cookies/Session)
 });
 
-// Interceptor para manejo de errores
-api.interceptors.response.use(
+// REQUEST INTERCEPTOR: Attach Token to every request
+axiosInstance.interceptors.request.use((config) => {
+  const token = localStorage.getItem('auth_token');
+  if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+}, (error) => {
+    return Promise.reject(error);
+});
+
+// RESPONSE INTERCEPTOR: Handle Global Errors (like 401)
+axiosInstance.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      console.warn('Sesión expirada o no autorizada');
+    // Debugging: Loggear error detallado en consola
+    console.error("API Error:", error.response?.status, error.message, error.config?.url);
+
+    // Si el error es 401 (No autorizado) y no es la petición de login, cerrar sesión
+    if (error.response && error.response.status === 401 && !error.config.url.includes('/login')) {
+      localStorage.removeItem('auth_token');
       localStorage.removeItem('inventory_user_session');
-      window.location.href = '/login'; 
+      if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+         window.location.href = '/'; 
+      }
     }
     return Promise.reject(error);
   }
 );
 
-// --- AUTHENTICATION ---
+// --- SERVICES ---
+
 export const authService = {
-  login: (username: string, pin: string) => api.post('/login', { username, pin }),
-  logout: () => api.post('/logout'),
-  me: () => api.get<User>('/user'),
+  login: async (u: string, p: string) => (await axiosInstance.post('/login', { email: u, password: p })).data,
+  logout: () => axiosInstance.post('/logout'),
+  me: async () => Adapter.adaptUserFromApi((await axiosInstance.get('/user')).data)
 };
 
-// --- EQUIPMENT ---
 export const equipmentService = {
-  getAll: (companyId: number) => api.get<Equipment[]>(`/companies/${companyId}/equipment`),
-  getOne: (id: number) => api.get<Equipment>(`/equipment/${id}`),
-  create: (data: Omit<Equipment, 'id'>) => api.post<Equipment>('/equipment', data),
-  update: (id: number, data: Partial<Equipment>) => api.put<Equipment>(`/equipment/${id}`, data),
-  delete: (id: number) => api.delete(`/equipment/${id}`),
-  // Assign license to equipment
-  attachLicense: (equipmentId: number, licenseId: number) => api.post(`/equipment/${equipmentId}/licenses`, { license_id: licenseId }),
-  detachLicense: (equipmentId: number, licenseId: number) => api.delete(`/equipment/${equipmentId}/licenses/${licenseId}`),
+  getAll: async () => (await axiosInstance.get('/equipment')).data.data.map(Adapter.adaptEquipmentFromApi),
+  getOne: async (id: number) => Adapter.adaptEquipmentFromApi((await axiosInstance.get(`/equipment/${id}`)).data),
+  create: async (d: any) => Adapter.adaptEquipmentFromApi((await axiosInstance.post('/equipment', Adapter.adaptEquipmentToApi(d))).data),
+  update: async (id: number, d: any) => Adapter.adaptEquipmentFromApi((await axiosInstance.put(`/equipment/${id}`, Adapter.adaptEquipmentToApi(d))).data),
+  delete: (id: number) => axiosInstance.delete(`/equipment/${id}`),
+  attachLicense: (eid: number, lid: number) => axiosInstance.post(`/equipment/${eid}/licenses`, { license_id: lid }),
+  detachLicense: (eid: number, lid: number) => axiosInstance.delete(`/equipment/${eid}/licenses/${lid}`),
 };
 
-// --- COLLABORATORS ---
 export const collaboratorService = {
-  getAll: (companyId: number) => api.get<Collaborator[]>(`/companies/${companyId}/collaborators`),
-  create: (data: Omit<Collaborator, 'id'>) => api.post<Collaborator>('/collaborators', data),
-  update: (id: number, data: Partial<Collaborator>) => api.put<Collaborator>(`/collaborators/${id}`, data),
-  delete: (id: number) => api.delete(`/collaborators/${id}`),
-  toggleStatus: (id: number) => api.patch(`/collaborators/${id}/toggle-status`),
-  importBulk: (data: Omit<Collaborator, 'id'>[]) => api.post('/collaborators/bulk', { collaborators: data }),
+  getAll: async () => (await axiosInstance.get('/collaborators')).data.data.map(Adapter.adaptCollaboratorFromApi),
+  create: async (d: any) => Adapter.adaptCollaboratorFromApi((await axiosInstance.post('/collaborators', Adapter.adaptCollaboratorToApi(d))).data),
+  update: async (id: number, d: any) => Adapter.adaptCollaboratorFromApi((await axiosInstance.put(`/collaborators/${id}`, Adapter.adaptCollaboratorToApi(d))).data),
+  delete: (id: number) => axiosInstance.delete(`/collaborators/${id}`),
+  toggleStatus: async (id: number) => Adapter.adaptCollaboratorFromApi((await axiosInstance.patch(`/collaborators/${id}/toggle-status`)).data),
+  importBulk: (d: any[]) => axiosInstance.post('/collaborators/bulk', { collaborators: d.map(Adapter.adaptCollaboratorToApi) }),
 };
 
-// --- LICENSES ---
 export const licenseService = {
-  getAll: (companyId: number) => api.get<SoftwareLicense[]>(`/companies/${companyId}/licenses`),
-  create: (data: Omit<SoftwareLicense, 'id'>) => api.post<SoftwareLicense>('/licenses', data),
-  update: (id: number, data: Partial<SoftwareLicense>) => api.put<SoftwareLicense>(`/licenses/${id}`, data),
-  delete: (id: number) => api.delete(`/licenses/${id}`),
+  getAll: async () => (await axiosInstance.get('/licenses')).data.data.map(Adapter.adaptLicenseFromApi),
+  create: async (d: any) => Adapter.adaptLicenseFromApi((await axiosInstance.post('/licenses', Adapter.adaptLicenseToApi(d))).data),
+  update: async (id: number, d: any) => Adapter.adaptLicenseFromApi((await axiosInstance.put(`/licenses/${id}`, Adapter.adaptLicenseToApi(d))).data),
+  delete: (id: number) => axiosInstance.delete(`/licenses/${id}`),
 };
 
-// --- MAINTENANCE ---
 export const maintenanceService = {
-  getAll: (companyId: number) => api.get<MaintenanceRecord[]>(`/companies/${companyId}/maintenance`),
-  create: (data: Omit<MaintenanceRecord, 'id'>) => api.post<MaintenanceRecord>('/maintenance', data),
-  resolve: (id: number, data: { resolutionDetails: string, resolutionDate: string, deliveryStatus?: string }) => 
-    api.put<MaintenanceRecord>(`/maintenance/${id}/resolve`, data),
-  toggleDelivery: (id: number) => api.patch(`/maintenance/${id}/toggle-delivery`),
+  getAll: async () => (await axiosInstance.get('/maintenance')).data.data.map(Adapter.adaptMaintenanceFromApi),
+  create: async (d: any) => Adapter.adaptMaintenanceFromApi((await axiosInstance.post('/maintenance', Adapter.adaptMaintenanceToApi(d))).data),
+  resolve: async (id: number, d: any) => Adapter.adaptMaintenanceFromApi((await axiosInstance.put(`/maintenance/${id}`, { 
+      resolution_details: d.resolutionDetails, resolution_date: d.resolutionDate, delivery_status: d.deliveryStatus, status: 'Closed' 
+  })).data),
+  toggleDelivery: async (id: number) => Adapter.adaptMaintenanceFromApi((await axiosInstance.patch(`/maintenance/${id}/toggle-delivery`)).data),
 };
 
-// --- CREDENTIALS ---
 export const credentialService = {
-  getAll: (companyId: number) => api.get<Credential[]>(`/companies/${companyId}/credentials`),
-  create: (data: Omit<Credential, 'id'>) => api.post<Credential>('/credentials', data),
-  update: (id: number, data: Partial<Credential>) => api.put<Credential>(`/credentials/${id}`, data),
-  delete: (id: number) => api.delete(`/credentials/${id}`),
+  getAll: async () => (await axiosInstance.get('/credentials')).data.data.map(Adapter.adaptCredentialFromApi),
+  create: async (d: any) => Adapter.adaptCredentialFromApi((await axiosInstance.post('/credentials', Adapter.adaptCredentialToApi(d))).data),
+  update: async (id: number, d: any) => Adapter.adaptCredentialFromApi((await axiosInstance.put(`/credentials/${id}`, Adapter.adaptCredentialToApi(d))).data),
+  delete: (id: number) => axiosInstance.delete(`/credentials/${id}`),
 };
 
-// --- USERS (SYSTEM ACCESS) ---
 export const userService = {
-  getAll: () => api.get<User[]>('/users'),
-  create: (data: Omit<User, 'id'>) => api.post<User>('/users', data),
-  update: (id: number, data: Partial<User>) => api.put<User>(`/users/${id}`, data),
-  delete: (id: number) => api.delete(`/users/${id}`),
+  getAll: async () => (await axiosInstance.get('/users')).data.data.map(Adapter.adaptUserFromApi),
+  create: async (d: any) => Adapter.adaptUserFromApi((await axiosInstance.post('/users', Adapter.adaptUserToApi(d))).data),
+  update: async (id: number, d: any) => Adapter.adaptUserFromApi((await axiosInstance.put(`/users/${id}`, Adapter.adaptUserToApi(d))).data),
+  delete: (id: number) => axiosInstance.delete(`/users/${id}`),
 };
 
-// --- HISTORY & REPORTS ---
-export const historyService = {
-  getEquipmentHistory: (equipmentId: number) => api.get(`/equipment/${equipmentId}/history`),
-  exportDatabase: () => api.get('/system/export', { responseType: 'blob' }),
+export default {
+    authService,
+    equipmentService,
+    collaboratorService,
+    licenseService,
+    maintenanceService,
+    credentialService,
+    userService
 };
-
-export default api;
